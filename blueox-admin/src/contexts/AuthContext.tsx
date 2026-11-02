@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase, Client } from '../lib/supabase';
+import * as authService from '../services/authService';
+import * as clientsService from '../services/clientsService';
+import type { AppUser, AppSession, AppAuthError, Client } from '../services/types';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AppUser | null;
+  session: AppSession | null;
   client: Client | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: AppAuthError | null }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
 }
@@ -15,51 +16,29 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [session, setSession] = useState<AppSession | null>(null);
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchClient = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('auth_user_id', userId)
-        .single();
-      
-      if (error) {
-        console.log('Client fetch error:', error.message);
-        // For admin users, create a fallback client object
-        if (userId === '5a236bf5-65e1-4a4c-bed4-df065c093e13') {
-          const fallbackClient = {
-            id: 'admin-fallback',
-            auth_user_id: userId,
-            email: 'dqescjhu@minimax.com',
-            full_name: 'Blue OX Admin',
-            role: 'admin' as const,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          setClient(fallbackClient);
-        } else {
-          setClient(null);
-        }
-      } else {
-        setClient(data);
-      }
+      const data = await clientsService.getClientByAuthUserId(userId);
+      setClient(data);
     } catch (error) {
-      console.log('Client fetch exception:', error);
-      // For admin users, create a fallback client object
+      console.log('Client fetch error:', error);
+      // TODO(clerk-migration): remove this hack — it's a one-off fallback for a
+      // single hardcoded admin auth user id, bypassing the DB entirely when the
+      // clients row lookup fails for that id.
       if (userId === '5a236bf5-65e1-4a4c-bed4-df065c093e13') {
-        const fallbackClient = {
+        const fallbackClient: Client = {
           id: 'admin-fallback',
           auth_user_id: userId,
           email: 'dqescjhu@minimax.com',
           full_name: 'Blue OX Admin',
-          role: 'admin' as const,
+          role: 'admin',
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
         setClient(fallbackClient);
       } else {
@@ -69,20 +48,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    authService.getSession().then(({ user, session }) => {
       setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchClient(session.user.id);
+      setUser(user);
+      if (user) {
+        fetchClient(user.id);
       }
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const subscription = authService.onAuthStateChange((user, session) => {
       setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchClient(session.user.id);
+      setUser(user);
+      if (user) {
+        fetchClient(user.id);
       } else {
         setClient(null);
       }
@@ -93,12 +72,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await authService.signIn(email, password);
     return { error };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await authService.signOut();
     setClient(null);
   };
 

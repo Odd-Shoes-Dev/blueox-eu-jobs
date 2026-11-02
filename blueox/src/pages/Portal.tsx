@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { FileText, Upload, FolderOpen, CheckCircle, Clock, AlertTriangle, Trash2, Download, Eye } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, Application, Document as DocType } from '../lib/supabase';
+import type { Application, Document as DocType } from '../services/types';
+import * as applicationsService from '../services/applicationsService';
+import * as documentsService from '../services/documentsService';
+import * as storageService from '../services/storageService';
 import CVBuilder from '../components/CVBuilder';
 
 const Portal: React.FC = () => {
@@ -22,38 +25,36 @@ const Portal: React.FC = () => {
 
   const fetchData = async () => {
     if (!client) return;
-    
-    const [appsRes, docsRes] = await Promise.all([
-      supabase.from('applications').select('*').eq('client_id', client.id),
-      supabase.from('documents').select('*').eq('client_id', client.id),
+
+    const [appsData, docsData] = await Promise.all([
+      applicationsService.listApplicationsForClient(client.id),
+      documentsService.listDocumentsForClient(client.id),
     ]);
-    
-    setApplications(appsRes.data || []);
-    setDocuments(docsRes.data || []);
+
+    setApplications(appsData);
+    setDocuments(docsData);
     setLoading(false);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: string) => {
     if (!e.target.files || !e.target.files[0] || !client || !user) return;
-    
+
     const file = e.target.files[0];
     const sanitizedName = client.full_name.replace(/[^a-zA-Z0-9]/g, '_');
     const fileName = `${sanitizedName}_${docType}.${file.name.split('.').pop()}`;
     const filePath = `${user.id}/${fileName}`;
-    
+
     setUploading(true);
-    
-    const { error: uploadError } = await supabase.storage
-      .from('client-documents')
-      .upload(filePath, file, { upsert: true });
-    
+
+    const { error: uploadError } = await storageService.uploadDocument('client', filePath, file, { upsert: true });
+
     if (uploadError) {
       alert('Upload failed: ' + uploadError.message);
       setUploading(false);
       return;
     }
-    
-    await supabase.from('documents').insert({
+
+    await documentsService.insertDocumentRecord({
       client_id: client.id,
       file_name: fileName,
       file_path: filePath,
@@ -61,21 +62,21 @@ const Portal: React.FC = () => {
       file_size: file.size,
       mime_type: file.type,
     });
-    
+
     fetchData();
     setUploading(false);
   };
 
   const deleteDocument = async (doc: DocType) => {
     if (!confirm('Are you sure you want to delete this document?')) return;
-    
-    await supabase.storage.from('client-documents').remove([doc.file_path]);
-    await supabase.from('documents').delete().eq('id', doc.id);
+
+    await storageService.deleteDocument('client', doc.file_path);
+    await documentsService.deleteDocumentRecord(doc.id);
     fetchData();
   };
 
   const downloadDocument = async (doc: DocType) => {
-    const { data } = await supabase.storage.from('client-documents').download(doc.file_path);
+    const data = await storageService.downloadDocument('client', doc.file_path);
     if (data) {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');

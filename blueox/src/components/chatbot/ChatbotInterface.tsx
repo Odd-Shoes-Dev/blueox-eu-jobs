@@ -12,7 +12,10 @@ import {
   getPreFormMessage,
   getCompletionMessage 
 } from './conversationFlow';
-import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import * as jobsService from '../../services/jobsService';
+import * as applicationsService from '../../services/applicationsService';
+import * as storageService from '../../services/storageService';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
@@ -136,14 +139,10 @@ const ChatbotInterface: React.FC = () => {
     const userCountries = (data.targetCountries as string[]) || [];
 
     try {
-      // Fetch active jobs from Supabase
-      const { data: jobsData, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('is_active', true);
+      // Fetch active jobs
+      const jobsData = await jobsService.listActiveJobs();
 
-      if (error || !jobsData) {
-        console.error('Error fetching jobs:', error);
+      if (jobsData.length === 0) {
         return [];
       }
 
@@ -331,9 +330,7 @@ const ChatbotInterface: React.FC = () => {
         for (const [fieldName, file] of Object.entries(uploadedFiles)) {
           const fileName = `${Date.now()}-${fieldName}-${file.name}`;
           const filePath = `applications/${fileName}`;
-          const { error } = await supabase.storage
-            .from('documents')
-            .upload(filePath, file);
+          const { error } = await storageService.uploadDocument('admin', filePath, file);
           if (error) {
             console.error('Upload error:', error);
           } else {
@@ -345,12 +342,12 @@ const ChatbotInterface: React.FC = () => {
         allData.uploadedDocuments = uploadedDocumentPaths;
 
         // Save application
-        const { data: insertedApp, error: insertError } = await supabase.from('applications').insert({
+        const { data: insertedApp, error: insertError } = await applicationsService.createApplication({
           user_path: userPath,
           data: allData,
           status: 'pending',
           created_at: new Date().toISOString()
-        }).select();
+        });
 
         if (insertError) {
           console.error('Application insert error:', insertError);

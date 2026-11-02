@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, LogOut, Shield, Eye, EyeOff, Trash2, ChevronDown, ChevronUp, Edit2, Upload } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { supabase, Client, Application, Document as DocType, Payment, Job, ClientPaymentPhases } from './lib/supabase';
+import type { Client, Application, Document as DocType, Payment, Job, ClientPaymentPhases } from './services/types';
+import * as clientsService from './services/clientsService';
+import * as applicationsService from './services/applicationsService';
+import * as documentsService from './services/documentsService';
+import * as paymentsService from './services/paymentsService';
+import * as paymentPhasesService from './services/paymentPhasesService';
+import * as jobsService from './services/jobsService';
+import * as storageService from './services/storageService';
 
 type Tab = 'applications' | 'jobs';
 
@@ -119,47 +126,42 @@ const AdminDashboard: React.FC = () => {
 
   const fetchAllData = async () => {
     setLoading(true);
-    
+
     try {
-      const [clientsRes, appsRes, docsRes, paymentsRes, paymentPhasesRes, jobsRes] = await Promise.all([
-        supabase.from('clients').select('*').order('created_at', { ascending: false }),
-        supabase.from('applications').select('*').order('created_at', { ascending: false }),
-        supabase.from('documents').select('*').order('created_at', { ascending: false }),
-        supabase.from('payments').select('*').order('created_at', { ascending: false }),
-        supabase.from('client_payment_phases').select('*').order('created_at', { ascending: false }),
-        supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+      const [clientsData, appsRes, docsRes, paymentsRes, paymentPhasesRes, jobsRes] = await Promise.all([
+        clientsService.listClients(),
+        applicationsService.listApplications(),
+        documentsService.listAllDocuments(),
+        paymentsService.listPayments(),
+        paymentPhasesService.listPaymentPhases(),
+        jobsService.listJobs(),
       ]);
 
-      // Handle each response individually with error logging
-      const clientsData = clientsRes.data || [];
-      if (clientsRes.error) {
-        console.log('Clients fetch error:', clientsRes.error.message);
-      }
       setClients(clientsData);
 
       const clientMap = Object.fromEntries(clientsData.map(c => [c.id, c]));
-      
+
       if (appsRes.error) console.log('Applications fetch error:', appsRes.error.message);
       if (docsRes.error) console.log('Documents fetch error:', docsRes.error.message);
       if (paymentsRes.error) console.log('Payments fetch error:', paymentsRes.error.message);
       if (paymentPhasesRes.error) console.log('Payment phases fetch error:', paymentPhasesRes.error.message);
       if (jobsRes.error) console.log('Jobs fetch error:', jobsRes.error.message);
-      
-      setApplications((appsRes.data || []).map(a => ({ ...a, client: clientMap[a.client_id] })));
-      setDocuments((docsRes.data || []).map(d => ({ ...d, client: clientMap[d.client_id] })));
-      setPayments((paymentsRes.data || []).map(p => ({ ...p, client: clientMap[p.client_id] })));
-      setPaymentPhases((paymentPhasesRes.data || []).map(pp => ({ ...pp, client: clientMap[pp.client_id] })));
-      setJobs(jobsRes.data || []);
-      
+
+      setApplications(appsRes.data.map(a => ({ ...a, client: clientMap[a.client_id as string] })));
+      setDocuments(docsRes.data.map(d => ({ ...d, client: clientMap[d.client_id] })));
+      setPayments(paymentsRes.data.map(p => ({ ...p, client: clientMap[p.client_id] })));
+      setPaymentPhases(paymentPhasesRes.data.map(pp => ({ ...pp, client: clientMap[pp.client_id] })));
+      setJobs(jobsRes.data);
+
       console.log('Data fetch completed:', {
         clients: clientsData.length,
-        applications: (appsRes.data || []).length,
-        documents: (docsRes.data || []).length,
-        payments: (paymentsRes.data || []).length,
-        paymentPhases: (paymentPhasesRes.data || []).length,
-        jobs: (jobsRes.data || []).length
+        applications: appsRes.data.length,
+        documents: docsRes.data.length,
+        payments: paymentsRes.data.length,
+        paymentPhases: paymentPhasesRes.data.length,
+        jobs: jobsRes.data.length
       });
-      
+
     } catch (error) {
       console.error('Data fetch exception:', error);
       // Even on error, set empty arrays to prevent crashes
@@ -175,66 +177,31 @@ const AdminDashboard: React.FC = () => {
   };
 
   const updateApplicationStatus = async (id: string, status: string) => {
-    await supabase.from('applications').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    await applicationsService.updateApplicationStatus(id, status);
     fetchAllData();
   };
 
   const verifyDocument = async (id: string) => {
-    await supabase.from('documents').update({ 
-      is_verified: true, 
-      verified_by: currentClient?.id,
-      verified_at: new Date().toISOString()
-    }).eq('id', id);
+    await documentsService.verifyDocument(id, currentClient?.id);
     fetchAllData();
   };
 
   const updatePayment = async (id: string, status: string) => {
-    await supabase.from('payments').update({ 
-      status, 
-      verified_by: status === 'verified' ? currentClient?.id : null,
-      updated_at: new Date().toISOString()
-    }).eq('id', id);
+    await paymentsService.updatePaymentStatus(id, status, currentClient?.id);
     fetchAllData();
   };
 
   const addPayment = async (clientId: string, phase: number, amount: number) => {
-    await supabase.from('payments').insert({
-      client_id: clientId,
-      phase,
-      amount,
-      currency: 'EUR',
-      status: 'pending'
-    });
+    await paymentsService.addPayment(clientId, phase, amount);
     setShowModal(null);
     fetchAllData();
   };
 
   const saveJob = async (job: Partial<Job>) => {
     if (job.id) {
-      await supabase.from('jobs').update({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: job.is_active,
-        updated_at: new Date().toISOString()
-      }).eq('id', job.id);
+      await jobsService.updateJob(job.id, job);
     } else {
-      await supabase.from('jobs').insert({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: true
-      });
+      await jobsService.createJob(job);
     }
     setShowModal(null);
     setEditingItem(null);
@@ -243,14 +210,14 @@ const AdminDashboard: React.FC = () => {
 
   const deleteJob = async (id: string) => {
     if (!confirm('Delete this job?')) return;
-    await supabase.from('jobs').delete().eq('id', id);
+    await jobsService.deleteJob(id);
     fetchAllData();
   };
 
   const deleteApplication = async (id: string) => {
     if (!confirm('Delete this application? This action cannot be undone.')) return;
     try {
-      const { error } = await supabase.from('applications').delete().eq('id', id);
+      const { error } = await applicationsService.deleteApplication(id);
       if (error) {
         console.error('Delete error:', error);
         alert(`Failed to delete application: ${error.message}`);
@@ -283,14 +250,11 @@ const AdminDashboard: React.FC = () => {
 
   const saveApplication = async (app: Application & { client?: Client }) => {
     try {
-      const { error } = await supabase
-        .from('applications')
-        .update({
-          data: app.data,
-          status: app.status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', app.id);
+      const { error } = await applicationsService.updateApplication(app.id, {
+        data: app.data,
+        status: app.status,
+        updated_at: new Date().toISOString()
+      });
 
       if (error) {
         console.error('Update error:', error);
@@ -306,7 +270,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const downloadDocument = async (doc: DocType) => {
-    const { data } = await supabase.storage.from('client-documents').download(doc.file_path);
+    const { data } = await storageService.downloadDocument('client', doc.file_path);
     if (data) {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
@@ -319,7 +283,7 @@ const AdminDashboard: React.FC = () => {
   // Download application document from storage
   const downloadApplicationDocument = async (filePath: string, fieldName: string) => {
     try {
-      const { data, error } = await supabase.storage.from('documents').download(filePath);
+      const { data, error } = await storageService.downloadDocument('admin', filePath);
       if (error) {
         console.error('Download error:', error);
         alert(`Failed to download: ${error.message}`);
@@ -347,7 +311,7 @@ const AdminDashboard: React.FC = () => {
     if (!confirm(`Delete the ${fieldName} document? This cannot be undone.`)) return;
 
     try {
-      const { error } = await supabase.storage.from('documents').remove([filePath]);
+      const { error } = await storageService.deleteDocument('admin', filePath);
       if (error) {
         console.error('Delete error:', error);
         alert(`Failed to delete: ${error.message}`);
@@ -378,7 +342,7 @@ const AdminDashboard: React.FC = () => {
       const fileName = `${Date.now()}-${fieldName}-${file.name}`;
       const filePath = `applications/${fileName}`;
 
-      const { error } = await supabase.storage.from('documents').upload(filePath, file);
+      const { error } = await storageService.uploadDocument('admin', filePath, file);
       if (error) {
         console.error('Upload error:', error);
         alert(`Failed to upload: ${error.message}`);
@@ -455,7 +419,7 @@ const AdminDashboard: React.FC = () => {
       updateData[amountField] = amount;
     }
     
-    await supabase.from('client_payment_phases').update(updateData).eq('id', phaseId);
+    await paymentPhasesService.updatePaymentPhase(phaseId, updateData);
     fetchAllData();
   };
 
@@ -497,8 +461,8 @@ const AdminDashboard: React.FC = () => {
               onClick={async () => {
                 try {
                   console.log('Testing database connection...');
-                  const { data, error } = await supabase.from('clients').select('id, email, role').limit(1);
-                  
+                  const { data, error } = await clientsService.testClientsConnection();
+
                   if (error) {
                     console.error('Database test failed:', error);
                     alert(`Database Test Failed: ${error.message}`);

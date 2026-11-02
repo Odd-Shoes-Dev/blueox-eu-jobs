@@ -1,16 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+// Provider-agnostic domain types used across the app. None of these import from
+// '@supabase/supabase-js' — that keeps every consumer of these types decoupled from
+// the current backend/auth provider, so swapping providers later doesn't ripple out
+// into page/component code.
 
-// Supabase configuration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pvmcwgylcnedgvbjdler.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2bWN3Z3lsY25lZGd2YmpkbGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzNjA2MTksImV4cCI6MjA4MDkzNjYxOX0.3ILSwPRsvCYelH9d8ZZxEb53Ja1XurXYy59nqepLhAs';
+export interface AppUser {
+  id: string;
+  email?: string;
+}
 
-// Check if Supabase is properly configured
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+export interface AppSession {
+  user: AppUser;
+}
 
-// Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export interface AppAuthError {
+  message: string;
+}
 
-// Type definitions based on database schema
 export interface Client {
   id: string;
   auth_user_id?: string;
@@ -33,6 +38,7 @@ export interface Application {
   target_country?: string;
   status: string;
   data?: Record<string, unknown>;
+  conversation_context?: Record<string, unknown>;
   created_at: string;
   updated_at?: string;
 }
@@ -45,6 +51,7 @@ export interface Document {
   file_name: string;
   file_path: string;
   file_size?: number;
+  mime_type?: string;
   is_verified: boolean;
   verified_by?: string;
   verified_at?: string;

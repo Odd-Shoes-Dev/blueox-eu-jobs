@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { LogIn, UserPlus, AlertCircle, CheckCircle, X, MessageSquare } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import * as authService from '../services/authService';
+import * as clientsService from '../services/clientsService';
+import * as applicationsService from '../services/applicationsService';
 
 interface Toast {
   message: string;
@@ -96,13 +99,12 @@ const Login: React.FC = () => {
     }
 
     try {
-      const applicationType = data.userPath?.includes('student') 
-        ? (data.userPath === 'student_university' ? 'university' : 'student_job')
-        : (data.userPath === 'company' ? 'employer' : 'workforce');
-
-      const { error } = await supabase.from('applications').insert({
+      // data.userPath is already one of 'student_university' | 'student_job' |
+      // 'worker_job' | 'company' (see components/chatbot/types.ts), which matches
+      // the DB's application_type CHECK constraint exactly — no translation needed.
+      const { error } = await applicationsService.createApplication({
         client_id: clientId,
-        application_type: applicationType,
+        application_type: data.userPath,
         target_country: Array.isArray(data.targetCountries) ? data.targetCountries.join(', ') : data.targetCountries,
         status: 'pending',
         conversation_context: data,
@@ -132,16 +134,11 @@ const Login: React.FC = () => {
         } else {
           // If we have conversation data and user logs in, try to create application
           if (conversationData && isSupabaseConfigured) {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await authService.getCurrentUser();
             if (user) {
-              const { data: client } = await supabase
-                .from('clients')
-                .select('id')
-                .eq('auth_user_id', user.id)
-                .single();
-              
-              if (client) {
-                await createApplicationFromConversation(user.id, client.id, conversationData);
+              const clientId = await clientsService.getClientIdByAuthUserId(user.id);
+              if (clientId) {
+                await createApplicationFromConversation(user.id, clientId, conversationData);
               }
             }
           }
@@ -165,29 +162,21 @@ const Login: React.FC = () => {
           if (conversationData && isSupabaseConfigured) {
             // Wait a moment for the user to be created
             setTimeout(async () => {
-              const { data: { user } } = await supabase.auth.getUser();
+              const user = await authService.getCurrentUser();
               if (user) {
                 // Update client with additional data from conversation
                 const updateData: Record<string, unknown> = {};
                 if (phone) updateData.phone = phone;
                 if (conversationData.nationality) updateData.nationality = conversationData.nationality;
-                
+
                 if (Object.keys(updateData).length > 0) {
-                  await supabase
-                    .from('clients')
-                    .update(updateData)
-                    .eq('auth_user_id', user.id);
+                  await clientsService.updateClientByAuthUserId(user.id, updateData);
                 }
 
                 // Get client ID and create application
-                const { data: client } = await supabase
-                  .from('clients')
-                  .select('id')
-                  .eq('auth_user_id', user.id)
-                  .single();
-                
-                if (client) {
-                  await createApplicationFromConversation(user.id, client.id, conversationData);
+                const clientId = await clientsService.getClientIdByAuthUserId(user.id);
+                if (clientId) {
+                  await createApplicationFromConversation(user.id, clientId, conversationData);
                 }
               }
             }, 1000);

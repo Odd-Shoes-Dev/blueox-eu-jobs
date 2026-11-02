@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, MessageSquare, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, Client, Application, Document as DocType, Payment, Job } from '../lib/supabase';
+import type { Client, Application, Document as DocType, Payment, Job } from '../services/types';
+import * as clientsService from '../services/clientsService';
+import * as applicationsService from '../services/applicationsService';
+import * as documentsService from '../services/documentsService';
+import * as paymentsService from '../services/paymentsService';
+import * as jobsService from '../services/jobsService';
+import * as storageService from '../services/storageService';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs';
 
@@ -32,86 +38,50 @@ const Admin: React.FC = () => {
 
   const fetchAllData = async () => {
     setLoading(true);
-    const [clientsRes, appsRes, docsRes, paymentsRes, jobsRes] = await Promise.all([
-      supabase.from('clients').select('*').order('created_at', { ascending: false }),
-      supabase.from('applications').select('*').order('created_at', { ascending: false }),
-      supabase.from('documents').select('*').order('created_at', { ascending: false }),
-      supabase.from('payments').select('*').order('created_at', { ascending: false }),
-      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+    const [clientsData, appsData, docsData, paymentsData, jobsData] = await Promise.all([
+      clientsService.listClients(),
+      applicationsService.listApplications(),
+      documentsService.listAllDocuments(),
+      paymentsService.listPayments(),
+      jobsService.listJobs(),
     ]);
 
-    const clientsData = clientsRes.data || [];
     setClients(clientsData);
 
     const clientMap = Object.fromEntries(clientsData.map(c => [c.id, c]));
-    setApplications((appsRes.data || []).map(a => ({ ...a, client: clientMap[a.client_id] })));
-    setDocuments((docsRes.data || []).map(d => ({ ...d, client: clientMap[d.client_id] })));
-    setPayments((paymentsRes.data || []).map(p => ({ ...p, client: clientMap[p.client_id] })));
-    setJobs(jobsRes.data || []);
+    setApplications(appsData.map(a => ({ ...a, client: clientMap[a.client_id as string] })));
+    setDocuments(docsData.map(d => ({ ...d, client: clientMap[d.client_id] })));
+    setPayments(paymentsData.map(p => ({ ...p, client: clientMap[p.client_id] })));
+    setJobs(jobsData);
     setLoading(false);
   };
 
   const updateApplicationStatus = async (id: string, status: string) => {
-    await supabase.from('applications').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    await applicationsService.updateApplicationStatus(id, status);
     fetchAllData();
   };
 
   const verifyDocument = async (id: string) => {
-    await supabase.from('documents').update({ 
-      is_verified: true, 
-      verified_by: currentClient?.id,
-      verified_at: new Date().toISOString()
-    }).eq('id', id);
+    await documentsService.verifyDocument(id, currentClient?.id);
     fetchAllData();
   };
 
   const updatePayment = async (id: string, status: string) => {
-    await supabase.from('payments').update({ 
-      status, 
-      verified_by: status === 'verified' ? currentClient?.id : null,
-      updated_at: new Date().toISOString()
-    }).eq('id', id);
+    await paymentsService.updatePaymentStatus(id, status, currentClient?.id);
     fetchAllData();
   };
 
   const addPayment = async (clientId: string, phase: number, amount: number) => {
-    await supabase.from('payments').insert({
-      client_id: clientId,
-      phase,
-      amount,
-      currency: 'EUR',
-      status: 'pending'
-    });
+    await paymentsService.addPayment(clientId, phase, amount);
     setShowModal(null);
     fetchAllData();
   };
 
   const saveJob = async (job: Partial<Job>) => {
     if (job.id) {
-      await supabase.from('jobs').update({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: job.is_active,
-        updated_at: new Date().toISOString()
-      }).eq('id', job.id);
+      await jobsService.updateJob(job.id, job);
     } else {
-      await supabase.from('jobs').insert({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: true
-      });
+      await jobsService.createJob(job);
     }
     setShowModal(null);
     setEditingItem(null);
@@ -120,12 +90,12 @@ const Admin: React.FC = () => {
 
   const deleteJob = async (id: string) => {
     if (!confirm('Delete this job?')) return;
-    await supabase.from('jobs').delete().eq('id', id);
+    await jobsService.deleteJob(id);
     fetchAllData();
   };
 
   const downloadDocument = async (doc: DocType) => {
-    const { data } = await supabase.storage.from('client-documents').download(doc.file_path);
+    const data = await storageService.downloadDocument('client', doc.file_path);
     if (data) {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
