@@ -46,7 +46,7 @@ const Portal: React.FC = () => {
 
     setUploading(true);
 
-    const { error: uploadError } = await storageService.uploadDocument('client', filePath, file, { upsert: true });
+    const { error: uploadError, fileId } = await storageService.uploadDocument('client', filePath, file, { upsert: true });
 
     if (uploadError) {
       alert('Upload failed: ' + uploadError.message);
@@ -55,12 +55,12 @@ const Portal: React.FC = () => {
     }
 
     await documentsService.insertDocumentRecord({
-      client_id: client.id,
       file_name: fileName,
       file_path: filePath,
       document_type: docType,
       file_size: file.size,
       mime_type: file.type,
+      imagekit_file_id: fileId,
     });
 
     fetchData();

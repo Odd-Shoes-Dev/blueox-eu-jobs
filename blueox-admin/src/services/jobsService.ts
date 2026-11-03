@@ -1,9 +1,13 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiFetch } from './apiClient';
 import type { Job } from './types';
 
 export async function listJobs(): Promise<{ data: Job[]; error: Error | null }> {
-  const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
-  return { data: data ?? [], error: error ?? null };
+  try {
+    const data = await apiFetch<Job[]>('/api/jobs');
+    return { data, error: null };
+  } catch (error) {
+    return { data: [], error: error as Error };
+  }
 }
 
 interface JobInput {
@@ -19,37 +23,13 @@ interface JobInput {
 }
 
 export async function createJob(job: JobInput): Promise<void> {
-  await supabase.from('jobs').insert({
-    title: job.title,
-    company: job.company,
-    location: job.location,
-    country: job.country,
-    job_type: job.job_type,
-    description: job.description,
-    requirements: job.requirements,
-    salary_range: job.salary_range,
-    is_active: true,
-  });
+  await apiFetch('/api/jobs', { method: 'POST', body: JSON.stringify(job) });
 }
 
 export async function updateJob(id: string, job: JobInput): Promise<void> {
-  await supabase
-    .from('jobs')
-    .update({
-      title: job.title,
-      company: job.company,
-      location: job.location,
-      country: job.country,
-      job_type: job.job_type,
-      description: job.description,
-      requirements: job.requirements,
-      salary_range: job.salary_range,
-      is_active: job.is_active,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id);
+  await apiFetch(`/api/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(job) });
 }
 
 export async function deleteJob(id: string): Promise<void> {
-  await supabase.from('jobs').delete().eq('id', id);
+  await apiFetch(`/api/jobs/${id}`, { method: 'DELETE' });
 }

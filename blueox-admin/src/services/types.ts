@@ -1,7 +1,7 @@
-// Provider-agnostic domain types used across the app. None of these import from
-// '@supabase/supabase-js' — that keeps every consumer of these types decoupled from
-// the current backend/auth provider, so swapping providers later doesn't ripple out
-// into page/component code.
+// Provider-agnostic domain types used across the app. None of these import from any
+// SDK (Clerk, ImageKit, etc.) — that keeps every consumer of these types decoupled
+// from the current backend/auth provider, so swapping providers later doesn't ripple
+// out into page/component code.
 
 export interface AppUser {
   id: string;

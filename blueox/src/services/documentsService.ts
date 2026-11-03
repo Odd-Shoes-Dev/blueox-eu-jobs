@@ -1,36 +1,43 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiFetch } from './apiClient';
 import type { Document } from './types';
 
-export async function listDocumentsForClient(clientId: string): Promise<Document[]> {
-  const { data } = await supabase.from('documents').select('*').eq('client_id', clientId);
-  return data ?? [];
+// clientId is unused server-side now — see applicationsService for why.
+export async function listDocumentsForClient(_clientId: string): Promise<Document[]> {
+  return apiFetch('/api/documents');
 }
 
 export async function listAllDocuments(): Promise<Document[]> {
-  const { data } = await supabase.from('documents').select('*').order('created_at', { ascending: false });
-  return data ?? [];
+  return apiFetch('/api/documents');
 }
 
 export async function insertDocumentRecord(payload: {
-  client_id: string;
   file_name: string;
   file_path: string;
   document_type: string;
   file_size: number;
   mime_type: string;
+  imagekit_file_id?: string;
 }): Promise<{ error: Error | null }> {
-  const { error } = await supabase.from('documents').insert(payload);
-  return { error };
+  try {
+    await apiFetch('/api/documents', { method: 'POST', body: JSON.stringify(payload) });
+    return { error: null };
+  } catch (error) {
+    return { error: error as Error };
+  }
 }
 
+// Deleting the documents row also deletes the underlying ImageKit file server-side
+// (via its stored imagekit_file_id) — see blueox-api/api/documents/[id].ts.
 export async function deleteDocumentRecord(id: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.from('documents').delete().eq('id', id);
-  return { error };
+  try {
+    await apiFetch(`/api/documents/${id}`, { method: 'DELETE' });
+    return { error: null };
+  } catch (error) {
+    return { error: error as Error };
+  }
 }
 
-export async function verifyDocument(id: string, verifiedBy?: string): Promise<void> {
-  await supabase
-    .from('documents')
-    .update({ is_verified: true, verified_by: verifiedBy, verified_at: new Date().toISOString() })
-    .eq('id', id);
+// verifiedBy is unused server-side now — the backend uses the authed admin's own id.
+export async function verifyDocument(id: string, _verifiedBy?: string): Promise<void> {
+  await apiFetch(`/api/documents/${id}`, { method: 'PATCH' });
 }

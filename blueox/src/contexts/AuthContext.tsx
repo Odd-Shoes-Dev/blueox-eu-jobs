@@ -1,119 +1,63 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { isSupabaseConfigured } from '../lib/supabaseClient';
-import * as authService from '../services/authService';
+import { useUser, useClerk } from '@clerk/clerk-react';
 import * as clientsService from '../services/clientsService';
-import type { AppUser, AppSession, AppAuthError, Client } from '../services/types';
-
-interface SignUpResult {
-  error: Error | AppAuthError | null;
-  data?: { user: AppUser | null };
-}
+import type { AppUser, Client } from '../services/types';
 
 interface AuthContextType {
   user: AppUser | null;
-  session: AppSession | null;
   client: Client | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: 'student' | 'workforce') => Promise<SignUpResult>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | AppAuthError | null }>;
-  signOut: () => Promise<void>;
   isAdmin: boolean;
-  isConfigured: boolean;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [session, setSession] = useState<AppSession | null>(null);
+  const { isLoaded, isSignedIn, user: clerkUser } = useUser();
+  const { signOut: clerkSignOut } = useClerk();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchClient = async (userId: string) => {
-    if (!isSupabaseConfigured) return;
-    try {
-      const data = await clientsService.getClientByAuthUserId(userId);
-      setClient(data);
-    } catch (err) {
-      console.error('Error fetching client:', err);
-    }
-  };
+  const user: AppUser | null = clerkUser
+    ? { id: clerkUser.id, email: clerkUser.primaryEmailAddress?.emailAddress }
+    : null;
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      setClient(null);
       setLoading(false);
       return;
     }
 
-    authService.getSession().then(({ user, session }) => {
-      setSession(session);
-      setUser(user);
-      if (user) {
-        fetchClient(user.id);
-      }
-      setLoading(false);
-    });
-
-    const subscription = authService.onAuthStateChange((user, session) => {
-      setSession(session);
-      setUser(user);
-      if (user) {
-        fetchClient(user.id);
-      } else {
+    setLoading(true);
+    clientsService
+      .getMe()
+      .then(({ client }) => setClient(client))
+      .catch((err) => {
+        console.error('Error fetching client:', err);
         setClient(null);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signUp = async (email: string, password: string, fullName: string, role: 'student' | 'workforce'): Promise<SignUpResult> => {
-    if (!isSupabaseConfigured) {
-      return { error: new Error('Supabase is not configured. Please set up your environment variables.') };
-    }
-
-    const { user, error } = await authService.signUp(email, password);
-    if (error) return { error, data: { user: null } };
-
-    if (user) {
-      const { error: clientError } = await clientsService.createClientRecord({
-        auth_user_id: user.id,
-        email,
-        full_name: fullName,
-        role,
-      });
-      if (clientError) return { error: clientError, data: { user } };
-    }
-    return { error: null, data: { user } };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    if (!isSupabaseConfigured) {
-      return { error: new Error('Supabase is not configured. Please set up your environment variables.') };
-    }
-    const { error } = await authService.signIn(email, password);
-    return { error };
-  };
+      })
+      .finally(() => setLoading(false));
+  }, [isLoaded, isSignedIn]);
 
   const signOut = async () => {
-    if (!isSupabaseConfigured) return;
-    await authService.signOut();
+    await clerkSignOut();
     setClient(null);
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      client,
-      loading,
-      signUp,
-      signIn,
-      signOut,
-      isAdmin: client?.role === 'admin',
-      isConfigured: isSupabaseConfigured,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        client,
+        loading: !isLoaded || loading,
+        isAdmin: client?.role === 'admin',
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

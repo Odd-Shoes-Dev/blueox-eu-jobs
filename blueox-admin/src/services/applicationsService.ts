@@ -1,27 +1,36 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiFetch } from './apiClient';
 import type { Application } from './types';
 
 export async function listApplications(): Promise<{ data: Application[]; error: Error | null }> {
-  const { data, error } = await supabase.from('applications').select('*').order('created_at', { ascending: false });
-  return { data: data ?? [], error: error ?? null };
+  try {
+    const data = await apiFetch<Application[]>('/api/applications');
+    return { data, error: null };
+  } catch (error) {
+    return { data: [], error: error as Error };
+  }
 }
 
 export async function updateApplicationStatus(id: string, status: string): Promise<void> {
-  await supabase
-    .from('applications')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id);
+  await apiFetch(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
 export async function updateApplication(
   id: string,
   updates: Record<string, unknown>
 ): Promise<{ error: Error | null }> {
-  const { error } = await supabase.from('applications').update(updates).eq('id', id);
-  return { error };
+  try {
+    await apiFetch(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    return { error: null };
+  } catch (error) {
+    return { error: error as Error };
+  }
 }
 
 export async function deleteApplication(id: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.from('applications').delete().eq('id', id);
-  return { error };
+  try {
+    await apiFetch(`/api/applications/${id}`, { method: 'DELETE' });
+    return { error: null };
+  } catch (error) {
+    return { error: error as Error };
+  }
 }

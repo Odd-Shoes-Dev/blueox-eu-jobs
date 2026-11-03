@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, LogOut, Shield, Eye, EyeOff, Trash2, ChevronDown, ChevronUp, Edit2, Upload } from 'lucide-react';
+import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, LogOut, Shield, Trash2, ChevronDown, ChevronUp, Edit2, Upload } from 'lucide-react';
+import { SignIn } from '@clerk/clerk-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import type { Client, Application, Document as DocType, Payment, Job, ClientPaymentPhases } from './services/types';
 import * as clientsService from './services/clientsService';
@@ -13,88 +14,18 @@ import * as storageService from './services/storageService';
 type Tab = 'applications' | 'jobs';
 
 const LoginPage: React.FC = () => {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    const { error } = await signIn(email, password);
-    if (error) {
-      setError(error.message);
-    }
-    setLoading(false);
-  };
-
   return (
     <div className="min-h-screen bg-navy flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+      <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <img src="/assets/logo.png" alt="The Blue OX - Earn while you study in Europe" className="h-16 mx-auto mb-4" />
-          <h1 className="font-orbitron text-2xl font-bold text-navy">Admin Console</h1>
-          <p className="text-gray-500 mt-2">Secure access for administrators only</p>
+          <h1 className="font-orbitron text-2xl font-bold text-white">Admin Console</h1>
+          <p className="text-gray-300 mt-2">Secure access for administrators only</p>
         </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent transition"
-              placeholder="admin@blueox.eu"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent transition pr-12"
-                placeholder="Enter password"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-coral text-white py-3 rounded-lg font-semibold hover:bg-coral-dark transition disabled:opacity-50 flex items-center justify-center"
-          >
-            {loading ? (
-              <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
-            ) : (
-              <>
-                <Shield className="w-5 h-5 mr-2" />
-                Sign In to Admin
-              </>
-            )}
-          </button>
-        </form>
+        <div className="flex justify-center">
+          <SignIn routing="virtual" appearance={{ variables: { colorPrimary: '#FF4040' } }} />
+        </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
           This is a secure admin area. Unauthorized access is prohibited.

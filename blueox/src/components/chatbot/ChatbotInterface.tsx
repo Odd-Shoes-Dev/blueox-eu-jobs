@@ -12,7 +12,6 @@ import {
   getPreFormMessage,
   getCompletionMessage 
 } from './conversationFlow';
-import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import * as jobsService from '../../services/jobsService';
 import * as applicationsService from '../../services/applicationsService';
 import * as storageService from '../../services/storageService';
@@ -322,41 +321,38 @@ const ChatbotInterface: React.FC = () => {
       uploadedDocuments: {} as Record<string, string>
     };
 
-    // Save to Supabase if configured
-    if (isSupabaseConfigured) {
-      try {
-        // Upload files first and track their paths
-        const uploadedDocumentPaths: Record<string, string> = {};
-        for (const [fieldName, file] of Object.entries(uploadedFiles)) {
-          const fileName = `${Date.now()}-${fieldName}-${file.name}`;
-          const filePath = `applications/${fileName}`;
-          const { error } = await storageService.uploadDocument('admin', filePath, file);
-          if (error) {
-            console.error('Upload error:', error);
-          } else {
-            uploadedDocumentPaths[fieldName] = filePath;
-          }
-        }
-
-        // Update allData with actual file paths
-        allData.uploadedDocuments = uploadedDocumentPaths;
-
-        // Save application
-        const { data: insertedApp, error: insertError } = await applicationsService.createApplication({
-          user_path: userPath,
-          data: allData,
-          status: 'pending',
-          created_at: new Date().toISOString()
-        });
-
-        if (insertError) {
-          console.error('Application insert error:', insertError);
+    try {
+      // Upload files first and track their paths
+      const uploadedDocumentPaths: Record<string, string> = {};
+      for (const [fieldName, file] of Object.entries(uploadedFiles)) {
+        const fileName = `${Date.now()}-${fieldName}-${file.name}`;
+        const filePath = `applications/${fileName}`;
+        const { error } = await storageService.uploadDocument('admin', filePath, file);
+        if (error) {
+          console.error('Upload error:', error);
         } else {
-          console.log('Application saved successfully:', insertedApp);
+          uploadedDocumentPaths[fieldName] = filePath;
         }
-      } catch (err) {
-        console.error('Error saving to Supabase:', err);
       }
+
+      // Update allData with actual file paths
+      allData.uploadedDocuments = uploadedDocumentPaths;
+
+      // Save application
+      const { data: insertedApp, error: insertError } = await applicationsService.createApplication({
+        user_path: userPath,
+        data: allData,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
+
+      if (insertError) {
+        console.error('Application insert error:', insertError);
+      } else {
+        console.log('Application saved successfully:', insertedApp);
+      }
+    } catch (err) {
+      console.error('Error saving application:', err);
     }
 
     setShowForm(false);

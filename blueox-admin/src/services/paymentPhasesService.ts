@@ -1,17 +1,18 @@
-import { supabase } from '../lib/supabaseClient';
+import { apiFetch } from './apiClient';
 import type { ClientPaymentPhases } from './types';
 
 export async function listPaymentPhases(): Promise<{ data: ClientPaymentPhases[]; error: Error | null }> {
-  const { data, error } = await supabase
-    .from('client_payment_phases')
-    .select('*')
-    .order('created_at', { ascending: false });
-  return { data: data ?? [], error: error ?? null };
+  try {
+    const data = await apiFetch<ClientPaymentPhases[]>('/api/payment-phases');
+    return { data, error: null };
+  } catch (error) {
+    return { data: [], error: error as Error };
+  }
 }
 
 export async function updatePaymentPhase(
   phaseId: string,
   updateData: Record<string, unknown>
 ): Promise<void> {
-  await supabase.from('client_payment_phases').update(updateData).eq('id', phaseId);
+  await apiFetch(`/api/payment-phases/${phaseId}`, { method: 'PATCH', body: JSON.stringify(updateData) });
 }
