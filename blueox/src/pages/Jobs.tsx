@@ -2,8 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { MapPin, Briefcase, Building, ExternalLink, Search, Filter, DollarSign, Info, X } from 'lucide-react';
 import type { Job } from '../services/types';
 import * as jobsService from '../services/jobsService';
-
-const WHATSAPP_LINK = 'https://wa.me/message/F6QOLB6IS3VHF1';
+import { WHATSAPP_LINK } from '../components/chatbot/conversationFlow';
 
 const Jobs: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
