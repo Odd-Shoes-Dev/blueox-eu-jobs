@@ -19,7 +19,7 @@ Clerk integration, since Google sign-in may come back later.
 | Backend session verification | `lib/auth.ts` (`getAuthedClient`, JWT-based) | `clerk-reference/lib-auth.clerk.ts` |
 | Backend Clerk client | — | `clerk-reference/lib-clerk.clerk.ts` |
 | `/api/me` | `api/me.ts` (reads existing session only) | `clerk-reference/api-me.clerk.ts` (also upserts a `clients` row from Clerk's profile) |
-| Sign-up/sign-in | `api/auth/signup.ts`, `api/auth/login.ts` | handled client-side by Clerk's `<SignIn/>`/`<SignUp/>` — no backend endpoint existed for this |
+| Sign-up/sign-in | `api/auth/[action].ts` (`signup`/`login`/etc.) | handled client-side by Clerk's `<SignIn/>`/`<SignUp/>` — no backend endpoint existed for this |
 | Frontend auth context | `blueox/src/contexts/AuthContext.tsx`, `blueox-admin/src/contexts/AuthContext.tsx` (custom) | each app's own `AuthContext.clerk.tsx` |
 | Frontend token source | `blueox/src/services/authService.ts` (localStorage) | each app's own `authService.clerk.ts` (`window.Clerk.session.getToken()`) |
 | Frontend login UI | `blueox/src/pages/Login.tsx` (plain form), `blueox-admin`'s `LoginPage` in `App.tsx` (plain form) | `blueox/src/pages/Login.clerk.tsx`, and the Clerk `<SignIn/>` version left as a comment in `blueox-admin/src/App.tsx` |

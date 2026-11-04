@@ -3,6 +3,8 @@ import { applyCors } from '../../lib/cors';
 import { sql } from '../../lib/db';
 import { getAuthedClient } from '../../lib/auth';
 
+// Catch-all: GET /api/payment-phases (no id), PATCH /api/payment-phases/:id.
+// Consolidated from two files to stay under Vercel's Hobby-plan 12-function limit.
 const ALLOWED_FIELDS = [
   'phase_1_down_payment', 'phase_1_amount', 'phase_1_date',
   'phase_2_embassy_fee', 'phase_2_amount', 'phase_2_date',
@@ -11,12 +13,21 @@ const ALLOWED_FIELDS = [
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
-  if (req.method !== 'PATCH') return res.status(405).json({ error: 'Method not allowed' });
 
   const authed = await getAuthedClient(req);
   if (!authed || authed.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
 
-  const id = req.query.id as string;
+  const params = req.query.params;
+  const id = Array.isArray(params) ? params[0] : undefined;
+
+  if (!id) {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+    const rows = await sql`SELECT * FROM client_payment_phases ORDER BY created_at DESC`;
+    return res.status(200).json(rows);
+  }
+
+  if (req.method !== 'PATCH') return res.status(405).json({ error: 'Method not allowed' });
+
   const body: Record<string, unknown> = req.body ?? {};
 
   const existingRows = await sql`SELECT * FROM client_payment_phases WHERE id = ${id}`;
