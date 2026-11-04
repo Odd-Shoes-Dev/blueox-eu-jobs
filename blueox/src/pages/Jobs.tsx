@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { MapPin, Briefcase, Building, ExternalLink, Search, Filter, DollarSign, Info, X } from 'lucide-react';
-import { supabase, Job } from '../lib/supabase';
+import type { Job } from '../services/types';
+import * as jobsService from '../services/jobsService';
 
 const WHATSAPP_LINK = 'https://wa.me/message/F6QOLB6IS3VHF1';
 
@@ -18,12 +19,8 @@ const Jobs: React.FC = () => {
   }, []);
 
   const fetchJobs = async () => {
-    const { data } = await supabase
-      .from('jobs')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-    setJobs(data || []);
+    const data = await jobsService.listActiveJobs();
+    setJobs(data);
     setLoading(false);
   };
 

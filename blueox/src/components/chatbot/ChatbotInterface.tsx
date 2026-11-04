@@ -12,7 +12,9 @@ import {
   getPreFormMessage,
   getCompletionMessage 
 } from './conversationFlow';
-import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import * as jobsService from '../../services/jobsService';
+import * as applicationsService from '../../services/applicationsService';
+import * as storageService from '../../services/storageService';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
@@ -136,14 +138,10 @@ const ChatbotInterface: React.FC = () => {
     const userCountries = (data.targetCountries as string[]) || [];
 
     try {
-      // Fetch active jobs from Supabase
-      const { data: jobsData, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('is_active', true);
+      // Fetch active jobs
+      const jobsData = await jobsService.listActiveJobs();
 
-      if (error || !jobsData) {
-        console.error('Error fetching jobs:', error);
+      if (jobsData.length === 0) {
         return [];
       }
 
@@ -323,43 +321,40 @@ const ChatbotInterface: React.FC = () => {
       uploadedDocuments: {} as Record<string, string>
     };
 
-    // Save to Supabase if configured
-    if (isSupabaseConfigured) {
-      try {
-        // Upload files first and track their paths
-        const uploadedDocumentPaths: Record<string, string> = {};
-        for (const [fieldName, file] of Object.entries(uploadedFiles)) {
-          const fileName = `${Date.now()}-${fieldName}-${file.name}`;
-          const filePath = `applications/${fileName}`;
-          const { error } = await supabase.storage
-            .from('documents')
-            .upload(filePath, file);
-          if (error) {
-            console.error('Upload error:', error);
-          } else {
-            uploadedDocumentPaths[fieldName] = filePath;
-          }
-        }
-
-        // Update allData with actual file paths
-        allData.uploadedDocuments = uploadedDocumentPaths;
-
-        // Save application
-        const { data: insertedApp, error: insertError } = await supabase.from('applications').insert({
-          user_path: userPath,
-          data: allData,
-          status: 'pending',
-          created_at: new Date().toISOString()
-        }).select();
-
-        if (insertError) {
-          console.error('Application insert error:', insertError);
+    try {
+      // Upload files first and track their paths
+      const uploadedDocumentPaths: Record<string, string> = {};
+      for (const [fieldName, file] of Object.entries(uploadedFiles)) {
+        const fileName = `${Date.now()}-${fieldName}-${file.name}`;
+        const filePath = `applications/${fileName}`;
+        const { error, path: storedPath } = await storageService.uploadDocument('admin', filePath, file);
+        if (error || !storedPath) {
+          console.error('Upload error:', error);
         } else {
-          console.log('Application saved successfully:', insertedApp);
+          // The real ImageKit path, not our local `filePath` guess — see
+          // storageService.uploadDocument's comment for why these can differ.
+          uploadedDocumentPaths[fieldName] = storedPath;
         }
-      } catch (err) {
-        console.error('Error saving to Supabase:', err);
       }
+
+      // Update allData with actual file paths
+      allData.uploadedDocuments = uploadedDocumentPaths;
+
+      // Save application
+      const { data: insertedApp, error: insertError } = await applicationsService.createApplication({
+        user_path: userPath,
+        data: allData,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
+
+      if (insertError) {
+        console.error('Application insert error:', insertError);
+      } else {
+        console.log('Application saved successfully:', insertedApp);
+      }
+    } catch (err) {
+      console.error('Error saving application:', err);
     }
 
     setShowForm(false);
@@ -594,14 +589,12 @@ const ChatbotInterface: React.FC = () => {
                 <Briefcase className="w-4 h-4 mr-1" />
                 Jobs Open
               </Link>
-              <a 
-                href={WHATSAPP_LINK} 
-                target="_blank" 
-                rel="noopener noreferrer"
+              <Link
+                to="/login"
                 className="bg-coral hover:bg-coral-dark text-white font-space text-sm px-4 py-2 rounded-lg transition-colors"
               >
                 Sign in
-              </a>
+              </Link>
             </nav>
 
             {/* Mobile menu button */}
@@ -639,14 +632,12 @@ const ChatbotInterface: React.FC = () => {
                 >
                   Jobs Open
                 </Link>
-                <a 
-                  href={WHATSAPP_LINK} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                <Link
+                  to="/login"
                   className="text-coral font-space text-sm"
                 >
                   Sign in
-                </a>
+                </Link>
               </div>
             </div>
           )}

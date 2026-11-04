@@ -2,7 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, MessageSquare, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, Client, Application, Document as DocType, Payment, Job } from '../lib/supabase';
+import { getFileKind } from '../lib/fileKind';
+import type { Client, Application, Document as DocType, Payment, Job } from '../services/types';
+import * as clientsService from '../services/clientsService';
+import * as applicationsService from '../services/applicationsService';
+import * as documentsService from '../services/documentsService';
+import * as paymentsService from '../services/paymentsService';
+import * as jobsService from '../services/jobsService';
+import * as storageService from '../services/storageService';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs';
 
@@ -25,6 +32,25 @@ const Admin: React.FC = () => {
   const [showModal, setShowModal] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; kind: 'image' | 'pdf' } | null>(null);
+  // Tracks which individual preview/download buttons are mid-request, keyed per
+  // button so only the clicked one shows a spinner (Preview/Download can each be
+  // slow — Neon's free-tier compute cold-starts after idling — with no other
+  // visual feedback otherwise).
+  const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
+  const isLoading = (key: string) => loadingKeys.has(key);
+  const runWithLoading = async (key: string, fn: () => Promise<void>) => {
+    setLoadingKeys((prev) => new Set(prev).add(key));
+    try {
+      await fn();
+    } finally {
+      setLoadingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (isAdmin) fetchAllData();
@@ -32,86 +58,50 @@ const Admin: React.FC = () => {
 
   const fetchAllData = async () => {
     setLoading(true);
-    const [clientsRes, appsRes, docsRes, paymentsRes, jobsRes] = await Promise.all([
-      supabase.from('clients').select('*').order('created_at', { ascending: false }),
-      supabase.from('applications').select('*').order('created_at', { ascending: false }),
-      supabase.from('documents').select('*').order('created_at', { ascending: false }),
-      supabase.from('payments').select('*').order('created_at', { ascending: false }),
-      supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+    const [clientsData, appsData, docsData, paymentsData, jobsData] = await Promise.all([
+      clientsService.listClients(),
+      applicationsService.listApplications(),
+      documentsService.listAllDocuments(),
+      paymentsService.listPayments(),
+      jobsService.listJobs(),
     ]);
 
-    const clientsData = clientsRes.data || [];
     setClients(clientsData);
 
     const clientMap = Object.fromEntries(clientsData.map(c => [c.id, c]));
-    setApplications((appsRes.data || []).map(a => ({ ...a, client: clientMap[a.client_id] })));
-    setDocuments((docsRes.data || []).map(d => ({ ...d, client: clientMap[d.client_id] })));
-    setPayments((paymentsRes.data || []).map(p => ({ ...p, client: clientMap[p.client_id] })));
-    setJobs(jobsRes.data || []);
+    setApplications(appsData.map(a => ({ ...a, client: clientMap[a.client_id as string] })));
+    setDocuments(docsData.map(d => ({ ...d, client: clientMap[d.client_id] })));
+    setPayments(paymentsData.map(p => ({ ...p, client: clientMap[p.client_id] })));
+    setJobs(jobsData);
     setLoading(false);
   };
 
   const updateApplicationStatus = async (id: string, status: string) => {
-    await supabase.from('applications').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    await applicationsService.updateApplicationStatus(id, status);
     fetchAllData();
   };
 
   const verifyDocument = async (id: string) => {
-    await supabase.from('documents').update({ 
-      is_verified: true, 
-      verified_by: currentClient?.id,
-      verified_at: new Date().toISOString()
-    }).eq('id', id);
+    await documentsService.verifyDocument(id, currentClient?.id);
     fetchAllData();
   };
 
   const updatePayment = async (id: string, status: string) => {
-    await supabase.from('payments').update({ 
-      status, 
-      verified_by: status === 'verified' ? currentClient?.id : null,
-      updated_at: new Date().toISOString()
-    }).eq('id', id);
+    await paymentsService.updatePaymentStatus(id, status, currentClient?.id);
     fetchAllData();
   };
 
   const addPayment = async (clientId: string, phase: number, amount: number) => {
-    await supabase.from('payments').insert({
-      client_id: clientId,
-      phase,
-      amount,
-      currency: 'EUR',
-      status: 'pending'
-    });
+    await paymentsService.addPayment(clientId, phase, amount);
     setShowModal(null);
     fetchAllData();
   };
 
   const saveJob = async (job: Partial<Job>) => {
     if (job.id) {
-      await supabase.from('jobs').update({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: job.is_active,
-        updated_at: new Date().toISOString()
-      }).eq('id', job.id);
+      await jobsService.updateJob(job.id, job);
     } else {
-      await supabase.from('jobs').insert({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: true
-      });
+      await jobsService.createJob(job);
     }
     setShowModal(null);
     setEditingItem(null);
@@ -120,12 +110,12 @@ const Admin: React.FC = () => {
 
   const deleteJob = async (id: string) => {
     if (!confirm('Delete this job?')) return;
-    await supabase.from('jobs').delete().eq('id', id);
+    await jobsService.deleteJob(id);
     fetchAllData();
   };
 
   const downloadDocument = async (doc: DocType) => {
-    const { data } = await supabase.storage.from('client-documents').download(doc.file_path);
+    const data = await storageService.downloadDocument('client', doc.file_path);
     if (data) {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
@@ -133,6 +123,41 @@ const Admin: React.FC = () => {
       a.download = doc.file_name;
       a.click();
     }
+  };
+
+  // Opens a PDF/image inline in a modal on this same page. Word docs can't be
+  // previewed by any browser, so those fall back to telling the admin to download.
+  const previewDocument = async (filePath: string, name?: string) => {
+    const kind = getFileKind(filePath);
+    if (kind === 'other') {
+      alert('Preview is not available for this file type — use Download instead.');
+      return;
+    }
+    const url = await storageService.getDocumentUrl(filePath);
+    if (!url) {
+      alert('Failed to open preview');
+      return;
+    }
+    setPreviewFile({ url, name: name || filePath.split('/').pop() || 'Document', kind });
+  };
+
+  // Chatbot-attached documents (CV, passport, etc.) live inside an application's
+  // own data.uploadedDocuments, not the documents table — so they need their own
+  // download path, same ImageKit 'admin'-kind bucket ChatbotInterface uploaded to.
+  const downloadApplicationDocument = async (filePath: string, fieldName: string) => {
+    const data = await storageService.downloadDocument('admin', filePath);
+    if (!data) {
+      alert(`Failed to download ${fieldName}`);
+      return;
+    }
+    const url = URL.createObjectURL(data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filePath.split('/').pop() || `${fieldName}-document`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   if (authLoading) {
@@ -175,7 +200,9 @@ const Admin: React.FC = () => {
   const renderConversationData = (data: Record<string, unknown>) => {
     if (!data) return null;
     
-    const excludeFields = ['savedAt', 'userPath'];
+    // uploadedDocuments gets its own preview/download buttons below — excluded here
+    // so it doesn't render as the literal string "[object Object]".
+    const excludeFields = ['savedAt', 'userPath', 'uploadedDocuments', 'selectedJob'];
     const fieldLabels: Record<string, string> = {
       educationLevel: 'Education Level',
       targetCountries: 'Target Countries',
@@ -352,16 +379,55 @@ const Admin: React.FC = () => {
                           {renderConversationData(app.data as Record<string, unknown>)}
                           
                           {/* Uploaded documents section */}
-                          {(app.data.uploadedDocuments as string[])?.length > 0 && (
+                          {app.data.uploadedDocuments && (
                             <div className="mt-4">
                               <h5 className="font-medium text-navy mb-2">Uploaded Documents:</h5>
-                              <div className="flex flex-wrap gap-2">
-                                {(app.data.uploadedDocuments as string[]).map((doc, i) => (
-                                  <span key={i} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">
-                                    <FileText className="w-3 h-3" />
-                                    {doc}
-                                  </span>
-                                ))}
+                              <div className="space-y-2">
+                                {/* Current format: Record<string, string> (field name -> file path) */}
+                                {typeof app.data.uploadedDocuments === 'object' && !Array.isArray(app.data.uploadedDocuments) ? (
+                                  Object.entries(app.data.uploadedDocuments as Record<string, string>).map(([fieldName, filePath]) => (
+                                    <div key={fieldName} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                                      <div className="flex items-center">
+                                        <FileText className="w-5 h-5 text-coral mr-3 flex-shrink-0" />
+                                        <span className="font-medium text-navy capitalize">{fieldName.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-1 flex-shrink-0">
+                                        <button
+                                          onClick={() => runWithLoading(`preview-${app.id}-${fieldName}`, () => previewDocument(String(filePath), fieldName))}
+                                          disabled={isLoading(`preview-${app.id}-${fieldName}`)}
+                                          className="p-2 text-gray-500 hover:text-coral transition disabled:opacity-50"
+                                          title="Preview"
+                                        >
+                                          {isLoading(`preview-${app.id}-${fieldName}`) ? (
+                                            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                          ) : (
+                                            <Eye className="w-5 h-5" />
+                                          )}
+                                        </button>
+                                        <button
+                                          onClick={() => runWithLoading(`download-${app.id}-${fieldName}`, () => downloadApplicationDocument(String(filePath), fieldName))}
+                                          disabled={isLoading(`download-${app.id}-${fieldName}`)}
+                                          className="p-2 text-gray-500 hover:text-coral transition disabled:opacity-50"
+                                          title="Download"
+                                        >
+                                          {isLoading(`download-${app.id}-${fieldName}`) ? (
+                                            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                          ) : (
+                                            <Download className="w-5 h-5" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  /* Legacy format: string[] (just field names, no file path to download) */
+                                  (Array.isArray(app.data.uploadedDocuments) ? app.data.uploadedDocuments : []).map((doc: string, i: number) => (
+                                    <div key={i} className="flex items-center bg-gray-50 p-3 rounded-lg">
+                                      <FileText className="w-5 h-5 text-coral mr-3 flex-shrink-0" />
+                                      <span className="font-medium text-navy">{doc}</span>
+                                    </div>
+                                  ))
+                                )}
                               </div>
                             </div>
                           )}
@@ -454,8 +520,29 @@ const Admin: React.FC = () => {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex space-x-2">
-                            <button onClick={() => downloadDocument(doc)} className="text-blue-600 hover:text-blue-800">
-                              <Download className="w-4 h-4" />
+                            <button
+                              onClick={() => runWithLoading(`preview-doc-${doc.id}`, () => previewDocument(doc.file_path, doc.file_name))}
+                              disabled={isLoading(`preview-doc-${doc.id}`)}
+                              className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                              title="Preview"
+                            >
+                              {isLoading(`preview-doc-${doc.id}`) ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => runWithLoading(`download-doc-${doc.id}`, () => downloadDocument(doc))}
+                              disabled={isLoading(`download-doc-${doc.id}`)}
+                              className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                              title="Download"
+                            >
+                              {isLoading(`download-doc-${doc.id}`) ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4" />
+                              )}
                             </button>
                             {!doc.is_verified && (
                               <button onClick={() => verifyDocument(doc.id)} className="text-green-600 hover:text-green-800">
@@ -673,6 +760,30 @@ const Admin: React.FC = () => {
                 {editingItem.id ? 'Update Job' : 'Create Job'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {previewFile && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-medium text-navy truncate">{previewFile.name}</h3>
+              <button onClick={() => setPreviewFile(null)}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100">
+              {previewFile.kind === 'image' ? (
+                <img src={previewFile.url} alt={previewFile.name} className="max-w-full mx-auto" />
+              ) : (
+                <iframe src={previewFile.url} className="w-full h-full" title={previewFile.name} />
+              )}
+            </div>
           </div>
         </div>
       )}

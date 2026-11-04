@@ -1,10 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, LogOut, Shield, Eye, EyeOff, Trash2, ChevronDown, ChevronUp, Edit2, Upload } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { supabase, Client, Application, Document as DocType, Payment, Job, ClientPaymentPhases } from './lib/supabase';
+import { getFileKind } from './lib/fileKind';
+import type { Client, Application, Document as DocType, Payment, Job, ClientPaymentPhases } from './services/types';
+import * as clientsService from './services/clientsService';
+import * as applicationsService from './services/applicationsService';
+import * as documentsService from './services/documentsService';
+import * as paymentsService from './services/paymentsService';
+import * as paymentPhasesService from './services/paymentPhasesService';
+import * as jobsService from './services/jobsService';
+import * as storageService from './services/storageService';
 
 type Tab = 'applications' | 'jobs';
 
+// Clerk is intentionally NOT used right now — see blueox-api/AUTH.md. To
+// re-enable it, swap this component's body back to:
+//
+//   import { SignIn } from '@clerk/clerk-react';
+//   ...
+//   <SignIn routing="virtual" appearance={{ variables: { colorPrimary: '#FF4040' } }} />
+//
 const LoginPage: React.FC = () => {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -32,7 +47,7 @@ const LoginPage: React.FC = () => {
           <h1 className="font-orbitron text-2xl font-bold text-navy">Admin Console</h1>
           <p className="text-gray-500 mt-2">Secure access for administrators only</p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -45,7 +60,7 @@ const LoginPage: React.FC = () => {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <div className="relative">
@@ -112,6 +127,25 @@ const AdminDashboard: React.FC = () => {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [editingApplication, setEditingApplication] = useState<(Application & { client?: Client }) | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; kind: 'image' | 'pdf' } | null>(null);
+  // Tracks which individual preview/download buttons are mid-request, keyed per
+  // button so only the clicked one shows a spinner (Preview/Download can each be
+  // slow — Neon's free-tier compute cold-starts after idling — with no other
+  // visual feedback otherwise).
+  const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
+  const isLoading = (key: string) => loadingKeys.has(key);
+  const runWithLoading = async (key: string, fn: () => Promise<void>) => {
+    setLoadingKeys((prev) => new Set(prev).add(key));
+    try {
+      await fn();
+    } finally {
+      setLoadingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (isAdmin) fetchAllData();
@@ -119,47 +153,42 @@ const AdminDashboard: React.FC = () => {
 
   const fetchAllData = async () => {
     setLoading(true);
-    
+
     try {
-      const [clientsRes, appsRes, docsRes, paymentsRes, paymentPhasesRes, jobsRes] = await Promise.all([
-        supabase.from('clients').select('*').order('created_at', { ascending: false }),
-        supabase.from('applications').select('*').order('created_at', { ascending: false }),
-        supabase.from('documents').select('*').order('created_at', { ascending: false }),
-        supabase.from('payments').select('*').order('created_at', { ascending: false }),
-        supabase.from('client_payment_phases').select('*').order('created_at', { ascending: false }),
-        supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+      const [clientsData, appsRes, docsRes, paymentsRes, paymentPhasesRes, jobsRes] = await Promise.all([
+        clientsService.listClients(),
+        applicationsService.listApplications(),
+        documentsService.listAllDocuments(),
+        paymentsService.listPayments(),
+        paymentPhasesService.listPaymentPhases(),
+        jobsService.listJobs(),
       ]);
 
-      // Handle each response individually with error logging
-      const clientsData = clientsRes.data || [];
-      if (clientsRes.error) {
-        console.log('Clients fetch error:', clientsRes.error.message);
-      }
       setClients(clientsData);
 
       const clientMap = Object.fromEntries(clientsData.map(c => [c.id, c]));
-      
+
       if (appsRes.error) console.log('Applications fetch error:', appsRes.error.message);
       if (docsRes.error) console.log('Documents fetch error:', docsRes.error.message);
       if (paymentsRes.error) console.log('Payments fetch error:', paymentsRes.error.message);
       if (paymentPhasesRes.error) console.log('Payment phases fetch error:', paymentPhasesRes.error.message);
       if (jobsRes.error) console.log('Jobs fetch error:', jobsRes.error.message);
-      
-      setApplications((appsRes.data || []).map(a => ({ ...a, client: clientMap[a.client_id] })));
-      setDocuments((docsRes.data || []).map(d => ({ ...d, client: clientMap[d.client_id] })));
-      setPayments((paymentsRes.data || []).map(p => ({ ...p, client: clientMap[p.client_id] })));
-      setPaymentPhases((paymentPhasesRes.data || []).map(pp => ({ ...pp, client: clientMap[pp.client_id] })));
-      setJobs(jobsRes.data || []);
-      
+
+      setApplications(appsRes.data.map(a => ({ ...a, client: clientMap[a.client_id as string] })));
+      setDocuments(docsRes.data.map(d => ({ ...d, client: clientMap[d.client_id] })));
+      setPayments(paymentsRes.data.map(p => ({ ...p, client: clientMap[p.client_id] })));
+      setPaymentPhases(paymentPhasesRes.data.map(pp => ({ ...pp, client: clientMap[pp.client_id] })));
+      setJobs(jobsRes.data);
+
       console.log('Data fetch completed:', {
         clients: clientsData.length,
-        applications: (appsRes.data || []).length,
-        documents: (docsRes.data || []).length,
-        payments: (paymentsRes.data || []).length,
-        paymentPhases: (paymentPhasesRes.data || []).length,
-        jobs: (jobsRes.data || []).length
+        applications: appsRes.data.length,
+        documents: docsRes.data.length,
+        payments: paymentsRes.data.length,
+        paymentPhases: paymentPhasesRes.data.length,
+        jobs: jobsRes.data.length
       });
-      
+
     } catch (error) {
       console.error('Data fetch exception:', error);
       // Even on error, set empty arrays to prevent crashes
@@ -175,66 +204,31 @@ const AdminDashboard: React.FC = () => {
   };
 
   const updateApplicationStatus = async (id: string, status: string) => {
-    await supabase.from('applications').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    await applicationsService.updateApplicationStatus(id, status);
     fetchAllData();
   };
 
   const verifyDocument = async (id: string) => {
-    await supabase.from('documents').update({ 
-      is_verified: true, 
-      verified_by: currentClient?.id,
-      verified_at: new Date().toISOString()
-    }).eq('id', id);
+    await documentsService.verifyDocument(id, currentClient?.id);
     fetchAllData();
   };
 
   const updatePayment = async (id: string, status: string) => {
-    await supabase.from('payments').update({ 
-      status, 
-      verified_by: status === 'verified' ? currentClient?.id : null,
-      updated_at: new Date().toISOString()
-    }).eq('id', id);
+    await paymentsService.updatePaymentStatus(id, status, currentClient?.id);
     fetchAllData();
   };
 
   const addPayment = async (clientId: string, phase: number, amount: number) => {
-    await supabase.from('payments').insert({
-      client_id: clientId,
-      phase,
-      amount,
-      currency: 'EUR',
-      status: 'pending'
-    });
+    await paymentsService.addPayment(clientId, phase, amount);
     setShowModal(null);
     fetchAllData();
   };
 
   const saveJob = async (job: Partial<Job>) => {
     if (job.id) {
-      await supabase.from('jobs').update({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: job.is_active,
-        updated_at: new Date().toISOString()
-      }).eq('id', job.id);
+      await jobsService.updateJob(job.id, job);
     } else {
-      await supabase.from('jobs').insert({
-        title: job.title,
-        company: job.company,
-        location: job.location,
-        country: job.country,
-        job_type: job.job_type,
-        description: job.description,
-        requirements: job.requirements,
-        salary_range: job.salary_range,
-        is_active: true
-      });
+      await jobsService.createJob(job);
     }
     setShowModal(null);
     setEditingItem(null);
@@ -243,14 +237,14 @@ const AdminDashboard: React.FC = () => {
 
   const deleteJob = async (id: string) => {
     if (!confirm('Delete this job?')) return;
-    await supabase.from('jobs').delete().eq('id', id);
+    await jobsService.deleteJob(id);
     fetchAllData();
   };
 
   const deleteApplication = async (id: string) => {
     if (!confirm('Delete this application? This action cannot be undone.')) return;
     try {
-      const { error } = await supabase.from('applications').delete().eq('id', id);
+      const { error } = await applicationsService.deleteApplication(id);
       if (error) {
         console.error('Delete error:', error);
         alert(`Failed to delete application: ${error.message}`);
@@ -283,14 +277,11 @@ const AdminDashboard: React.FC = () => {
 
   const saveApplication = async (app: Application & { client?: Client }) => {
     try {
-      const { error } = await supabase
-        .from('applications')
-        .update({
-          data: app.data,
-          status: app.status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', app.id);
+      const { error } = await applicationsService.updateApplication(app.id, {
+        data: app.data,
+        status: app.status,
+        updated_at: new Date().toISOString()
+      });
 
       if (error) {
         console.error('Update error:', error);
@@ -306,7 +297,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const downloadDocument = async (doc: DocType) => {
-    const { data } = await supabase.storage.from('client-documents').download(doc.file_path);
+    const { data } = await storageService.downloadDocument('client', doc.file_path);
     if (data) {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
@@ -319,7 +310,7 @@ const AdminDashboard: React.FC = () => {
   // Download application document from storage
   const downloadApplicationDocument = async (filePath: string, fieldName: string) => {
     try {
-      const { data, error } = await supabase.storage.from('documents').download(filePath);
+      const { data, error } = await storageService.downloadDocument('admin', filePath);
       if (error) {
         console.error('Download error:', error);
         alert(`Failed to download: ${error.message}`);
@@ -341,13 +332,29 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Opens a PDF/image inline in a modal on this same page. Word docs can't be
+  // previewed by any browser, so those fall back to telling the admin to download.
+  const previewApplicationDocument = async (filePath: string, fieldName?: string) => {
+    const kind = getFileKind(filePath);
+    if (kind === 'other') {
+      alert('Preview is not available for this file type — use Download instead.');
+      return;
+    }
+    const url = await storageService.getDocumentUrl(filePath);
+    if (!url) {
+      alert('Failed to open preview');
+      return;
+    }
+    setPreviewFile({ url, name: fieldName || filePath.split('/').pop() || 'Document', kind });
+  };
+
   // Delete application document from storage
   const deleteApplicationDocument = async (filePath: string, fieldName: string) => {
     if (!editingApplication) return;
     if (!confirm(`Delete the ${fieldName} document? This cannot be undone.`)) return;
 
     try {
-      const { error } = await supabase.storage.from('documents').remove([filePath]);
+      const { error } = await storageService.deleteDocument('admin', filePath);
       if (error) {
         console.error('Delete error:', error);
         alert(`Failed to delete: ${error.message}`);
@@ -378,16 +385,17 @@ const AdminDashboard: React.FC = () => {
       const fileName = `${Date.now()}-${fieldName}-${file.name}`;
       const filePath = `applications/${fileName}`;
 
-      const { error } = await supabase.storage.from('documents').upload(filePath, file);
-      if (error) {
+      const { error, path: storedPath } = await storageService.uploadDocument('admin', filePath, file);
+      if (error || !storedPath) {
         console.error('Upload error:', error);
-        alert(`Failed to upload: ${error.message}`);
+        alert(`Failed to upload: ${error?.message ?? 'unknown error'}`);
         return;
       }
 
-      // Update application data with new document path
+      // Update application data with new document path — the real ImageKit path,
+      // not our local `filePath` guess (see storageService.uploadDocument's comment).
       const updatedDocs = { ...(editingApplication.data?.uploadedDocuments as Record<string, string> || {}) };
-      updatedDocs[fieldName] = filePath;
+      updatedDocs[fieldName] = storedPath;
 
       setEditingApplication({
         ...editingApplication,
@@ -455,7 +463,7 @@ const AdminDashboard: React.FC = () => {
       updateData[amountField] = amount;
     }
     
-    await supabase.from('client_payment_phases').update(updateData).eq('id', phaseId);
+    await paymentPhasesService.updatePaymentPhase(phaseId, updateData);
     fetchAllData();
   };
 
@@ -497,8 +505,8 @@ const AdminDashboard: React.FC = () => {
               onClick={async () => {
                 try {
                   console.log('Testing database connection...');
-                  const { data, error } = await supabase.from('clients').select('id, email, role').limit(1);
-                  
+                  const { data, error } = await clientsService.testClientsConnection();
+
                   if (error) {
                     console.error('Database test failed:', error);
                     alert(`Database Test Failed: ${error.message}`);
@@ -706,19 +714,45 @@ const AdminDashboard: React.FC = () => {
                                   {appData.uploadedDocuments && (
                                     <div className="mt-4 pt-4 border-t">
                                       <h5 className="font-medium text-gray-700 mb-2">Uploaded Documents</h5>
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="space-y-2">
                                         {/* Handle new format: Record<string, string> */}
                                         {typeof appData.uploadedDocuments === 'object' && !Array.isArray(appData.uploadedDocuments) ? (
                                           Object.entries(appData.uploadedDocuments as Record<string, string>).map(([fieldName, filePath]) => (
-                                            <button
+                                            <div
                                               key={fieldName}
-                                              onClick={() => downloadApplicationDocument(String(filePath), fieldName)}
-                                              className="flex items-center space-x-1 bg-green-100 text-green-800 px-3 py-1 rounded text-xs hover:bg-green-200 transition"
-                                              title={`Download ${fieldName}`}
+                                              className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"
                                             >
-                                              <Download className="w-3 h-3" />
-                                              <span className="capitalize">{fieldName.replace(/([A-Z])/g, ' $1').trim()}</span>
-                                            </button>
+                                              <div className="flex items-center space-x-2">
+                                                <FileText className="w-4 h-4 text-gray-500" />
+                                                <span className="text-sm font-medium capitalize">{fieldName.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                              </div>
+                                              <div className="flex items-center space-x-2">
+                                                <button
+                                                  onClick={() => runWithLoading(`preview-${app.id}-${fieldName}`, () => previewApplicationDocument(String(filePath), fieldName))}
+                                                  disabled={isLoading(`preview-${app.id}-${fieldName}`)}
+                                                  className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
+                                                  title="Preview"
+                                                >
+                                                  {isLoading(`preview-${app.id}-${fieldName}`) ? (
+                                                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                                  ) : (
+                                                    <Eye className="w-4 h-4" />
+                                                  )}
+                                                </button>
+                                                <button
+                                                  onClick={() => runWithLoading(`download-${app.id}-${fieldName}`, () => downloadApplicationDocument(String(filePath), fieldName))}
+                                                  disabled={isLoading(`download-${app.id}-${fieldName}`)}
+                                                  className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
+                                                  title="Download"
+                                                >
+                                                  {isLoading(`download-${app.id}-${fieldName}`) ? (
+                                                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                                  ) : (
+                                                    <Download className="w-4 h-4" />
+                                                  )}
+                                                </button>
+                                              </div>
+                                            </div>
                                           ))
                                         ) : (
                                           /* Handle old format: string[] (just field names, no download) */
@@ -726,9 +760,10 @@ const AdminDashboard: React.FC = () => {
                                             ? appData.uploadedDocuments
                                             : []
                                           ).map((doc: string, idx: number) => (
-                                            <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                                              {doc}
-                                            </span>
+                                            <div key={idx} className="flex items-center space-x-2 bg-gray-50 p-3 rounded-lg">
+                                              <FileText className="w-4 h-4 text-gray-500" />
+                                              <span className="text-sm font-medium">{doc}</span>
+                                            </div>
                                           ))
                                         )}
                                       </div>
@@ -1147,11 +1182,29 @@ const AdminDashboard: React.FC = () => {
                           <div className="flex items-center space-x-2">
                             <button
                               type="button"
-                              onClick={() => downloadApplicationDocument(String(filePath), fieldName)}
-                              className="text-blue-600 hover:text-blue-800 p-1"
+                              onClick={() => runWithLoading(`preview-${editingApplication?.id}-${fieldName}`, () => previewApplicationDocument(String(filePath), fieldName))}
+                              disabled={isLoading(`preview-${editingApplication?.id}-${fieldName}`)}
+                              className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
+                              title="Preview"
+                            >
+                              {isLoading(`preview-${editingApplication?.id}-${fieldName}`) ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => runWithLoading(`download-${editingApplication?.id}-${fieldName}`, () => downloadApplicationDocument(String(filePath), fieldName))}
+                              disabled={isLoading(`download-${editingApplication?.id}-${fieldName}`)}
+                              className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
                               title="Download"
                             >
-                              <Download className="w-4 h-4" />
+                              {isLoading(`download-${editingApplication?.id}-${fieldName}`) ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4" />
+                              )}
                             </button>
                             <button
                               type="button"
@@ -1237,6 +1290,30 @@ const AdminDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {previewFile && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-medium text-navy truncate">{previewFile.name}</h3>
+              <button onClick={() => setPreviewFile(null)}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100">
+              {previewFile.kind === 'image' ? (
+                <img src={previewFile.url} alt={previewFile.name} className="max-w-full mx-auto" />
+              ) : (
+                <iframe src={previewFile.url} className="w-full h-full" title={previewFile.name} />
+              )}
+            </div>
           </div>
         </div>
       )}

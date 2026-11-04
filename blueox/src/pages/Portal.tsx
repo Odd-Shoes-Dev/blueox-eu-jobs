@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { FileText, Upload, FolderOpen, CheckCircle, Clock, AlertTriangle, Trash2, Download, Eye } from 'lucide-react';
+import { FileText, Upload, FolderOpen, CheckCircle, Clock, AlertTriangle, Trash2, Download, Eye, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, Application, Document as DocType } from '../lib/supabase';
+import { getFileKind } from '../lib/fileKind';
+import type { Application, Document as DocType } from '../services/types';
+import * as applicationsService from '../services/applicationsService';
+import * as documentsService from '../services/documentsService';
+import * as storageService from '../services/storageService';
 import CVBuilder from '../components/CVBuilder';
 
 const Portal: React.FC = () => {
@@ -13,6 +17,24 @@ const Portal: React.FC = () => {
   const [documents, setDocuments] = useState<DocType[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; kind: 'image' | 'pdf' } | null>(null);
+  // Tracks which individual preview/download buttons are mid-request, keyed per
+  // document+action so only the clicked one shows a spinner (these can be slow —
+  // Neon's free-tier compute cold-starts after idling — with no other feedback).
+  const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
+  const isLoading = (key: string) => loadingKeys.has(key);
+  const runWithLoading = async (key: string, fn: () => Promise<void>) => {
+    setLoadingKeys((prev) => new Set(prev).add(key));
+    try {
+      await fn();
+    } finally {
+      setLoadingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (client) {
@@ -22,60 +44,60 @@ const Portal: React.FC = () => {
 
   const fetchData = async () => {
     if (!client) return;
-    
-    const [appsRes, docsRes] = await Promise.all([
-      supabase.from('applications').select('*').eq('client_id', client.id),
-      supabase.from('documents').select('*').eq('client_id', client.id),
+
+    const [appsData, docsData] = await Promise.all([
+      applicationsService.listApplicationsForClient(client.id),
+      documentsService.listDocumentsForClient(client.id),
     ]);
-    
-    setApplications(appsRes.data || []);
-    setDocuments(docsRes.data || []);
+
+    setApplications(appsData);
+    setDocuments(docsData);
     setLoading(false);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: string) => {
     if (!e.target.files || !e.target.files[0] || !client || !user) return;
-    
+
     const file = e.target.files[0];
     const sanitizedName = client.full_name.replace(/[^a-zA-Z0-9]/g, '_');
     const fileName = `${sanitizedName}_${docType}.${file.name.split('.').pop()}`;
     const filePath = `${user.id}/${fileName}`;
-    
+
     setUploading(true);
-    
-    const { error: uploadError } = await supabase.storage
-      .from('client-documents')
-      .upload(filePath, file, { upsert: true });
-    
-    if (uploadError) {
-      alert('Upload failed: ' + uploadError.message);
+
+    const { error: uploadError, fileId, path: storedPath } = await storageService.uploadDocument('client', filePath, file, { upsert: true });
+
+    if (uploadError || !storedPath) {
+      alert('Upload failed: ' + (uploadError?.message ?? 'unknown error'));
       setUploading(false);
       return;
     }
-    
-    await supabase.from('documents').insert({
-      client_id: client.id,
+
+    await documentsService.insertDocumentRecord({
       file_name: fileName,
-      file_path: filePath,
+      // The real ImageKit path, not our local `filePath` guess — see
+      // storageService.uploadDocument's comment for why these can differ.
+      file_path: storedPath,
       document_type: docType,
       file_size: file.size,
       mime_type: file.type,
+      imagekit_file_id: fileId,
     });
-    
+
     fetchData();
     setUploading(false);
   };
 
   const deleteDocument = async (doc: DocType) => {
     if (!confirm('Are you sure you want to delete this document?')) return;
-    
-    await supabase.storage.from('client-documents').remove([doc.file_path]);
-    await supabase.from('documents').delete().eq('id', doc.id);
+
+    await storageService.deleteDocument('client', doc.file_path);
+    await documentsService.deleteDocumentRecord(doc.id);
     fetchData();
   };
 
   const downloadDocument = async (doc: DocType) => {
-    const { data } = await supabase.storage.from('client-documents').download(doc.file_path);
+    const data = await storageService.downloadDocument('client', doc.file_path);
     if (data) {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
@@ -83,6 +105,22 @@ const Portal: React.FC = () => {
       a.download = doc.file_name;
       a.click();
     }
+  };
+
+  // Opens a PDF/image inline in a modal on this same page. Word docs can't be
+  // previewed by any browser, so those fall back to telling you to download.
+  const previewDocument = async (doc: DocType) => {
+    const kind = getFileKind(doc.file_path);
+    if (kind === 'other') {
+      alert('Preview is not available for this file type — use Download instead.');
+      return;
+    }
+    const url = await storageService.getDocumentUrl(doc.file_path);
+    if (!url) {
+      alert('Failed to open preview');
+      return;
+    }
+    setPreviewFile({ url, name: doc.file_name, kind });
   };
 
   if (authLoading) {
@@ -277,11 +315,28 @@ const Portal: React.FC = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => downloadDocument(doc)}
-                          className="p-2 text-gray-500 hover:text-coral transition"
+                          onClick={() => runWithLoading(`preview-${doc.id}`, () => previewDocument(doc))}
+                          disabled={isLoading(`preview-${doc.id}`)}
+                          className="p-2 text-gray-500 hover:text-coral transition disabled:opacity-50"
+                          title="Preview"
+                        >
+                          {isLoading(`preview-${doc.id}`) ? (
+                            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => runWithLoading(`download-${doc.id}`, () => downloadDocument(doc))}
+                          disabled={isLoading(`download-${doc.id}`)}
+                          className="p-2 text-gray-500 hover:text-coral transition disabled:opacity-50"
                           title="Download"
                         >
-                          <Download className="w-5 h-5" />
+                          {isLoading(`download-${doc.id}`) ? (
+                            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Download className="w-5 h-5" />
+                          )}
                         </button>
                         <button
                           onClick={() => deleteDocument(doc)}
@@ -299,6 +354,30 @@ const Portal: React.FC = () => {
           </div>
         )}
       </div>
+
+      {previewFile && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-medium text-navy truncate">{previewFile.name}</h3>
+              <button onClick={() => setPreviewFile(null)}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100">
+              {previewFile.kind === 'image' ? (
+                <img src={previewFile.url} alt={previewFile.name} className="max-w-full mx-auto" />
+              ) : (
+                <iframe src={previewFile.url} className="w-full h-full" title={previewFile.name} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
