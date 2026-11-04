@@ -4,12 +4,12 @@ import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, P
 import { useAuth } from '../contexts/AuthContext';
 import { getFileKind } from '../lib/fileKind';
 import type { Client, Application, Document as DocType, Payment, Job } from '../services/types';
-import * as clientsService from '../services/clientsService';
 import * as applicationsService from '../services/applicationsService';
 import * as documentsService from '../services/documentsService';
 import * as paymentsService from '../services/paymentsService';
 import * as jobsService from '../services/jobsService';
 import * as storageService from '../services/storageService';
+import * as adminService from '../services/adminService';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs';
 
@@ -58,13 +58,14 @@ const Admin: React.FC = () => {
 
   const fetchAllData = async () => {
     setLoading(true);
-    const [clientsData, appsData, docsData, paymentsData, jobsData] = await Promise.all([
-      clientsService.listClients(),
-      applicationsService.listApplications(),
-      documentsService.listAllDocuments(),
-      paymentsService.listPayments(),
-      jobsService.listJobs(),
-    ]);
+    // One request instead of 5 — see adminService.getAdminDashboard's comment.
+    const {
+      clients: clientsData,
+      applications: appsData,
+      documents: docsData,
+      payments: paymentsData,
+      jobs: jobsData,
+    } = await adminService.getAdminDashboard();
 
     setClients(clientsData);
 
@@ -432,11 +433,28 @@ const Admin: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Selected job */}
+                          {/* Selected job — current submissions store a snapshot
+                              object (title/company/location/salary/type); older
+                              applications only have the raw job id string, so fall
+                              back to showing that when it's not an object. */}
                           {app.data.selectedJob && (
                             <div className="mt-4 p-3 bg-green-50 rounded-lg">
                               <h5 className="font-medium text-green-800 mb-1">Selected Job</h5>
-                              <p className="text-sm text-green-700">Job ID: {app.data.selectedJob as string}</p>
+                              {typeof app.data.selectedJob === 'object' ? (
+                                <div className="text-sm text-green-700">
+                                  <p className="font-medium">{(app.data.selectedJob as { title?: string }).title}</p>
+                                  <p>
+                                    {(app.data.selectedJob as { company?: string }).company}
+                                    {' · '}
+                                    {(app.data.selectedJob as { location?: string }).location}
+                                    {(app.data.selectedJob as { salary?: string }).salary
+                                      ? ` · ${(app.data.selectedJob as { salary?: string }).salary}`
+                                      : ''}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-green-700">Job ID: {app.data.selectedJob as string}</p>
+                              )}
                             </div>
                           )}
                         </div>

@@ -145,6 +145,15 @@ const ChatbotInterface: React.FC = () => {
         return [];
       }
 
+      // Country matching is case/whitespace-insensitive, since a job's country is
+      // free-text entered in the admin form (e.g. "netherlands" or "Netherlands ")
+      // and must still match the chatbot's fixed, exactly-cased option list
+      // (e.g. "Netherlands") — a raw === comparison would silently drop real
+      // matches over nothing but casing/trailing-space differences.
+      const normalize = (s: string) => s.trim().toLowerCase();
+      const normalizedUserCountries = userCountries.map(normalize);
+      const countryMatches = (jobCountry: string) => normalizedUserCountries.includes(normalize(jobCountry));
+
       // Filter jobs by country only - show ALL jobs from selected countries
       const matchedJobs = jobsData.filter(job => {
         // If no countries selected or "Any" selected, show all jobs
@@ -152,7 +161,7 @@ const ChatbotInterface: React.FC = () => {
           return true;
         }
         // Otherwise, only filter by country match
-        return userCountries.includes(job.country);
+        return countryMatches(job.country);
       });
 
       // Sort by skill relevance (jobs matching skills rank higher, but all are shown)
@@ -170,7 +179,7 @@ const ChatbotInterface: React.FC = () => {
         });
 
         // Boost exact country match
-        if (userCountries.includes(job.country)) score += 1;
+        if (countryMatches(job.country)) score += 1;
 
         return { ...job, score };
       });
@@ -317,9 +326,27 @@ const ChatbotInterface: React.FC = () => {
     const allData: Record<string, unknown> = {
       ...collectedData,
       ...formData,
-      selectedJob: selectedJob?.id,
+      // A snapshot of the job's details at selection time, not just its id — so
+      // the admin view can show what was actually offered without an extra
+      // lookup, and it stays accurate even if that job posting is later edited
+      // or removed.
+      selectedJob: selectedJob
+        ? {
+            id: selectedJob.id,
+            title: selectedJob.title,
+            company: selectedJob.company,
+            location: selectedJob.location,
+            salary: selectedJob.salary,
+            type: selectedJob.type,
+          }
+        : undefined,
       uploadedDocuments: {} as Record<string, string>
     };
+
+    // Only the success path may hide the form / mark the conversation complete —
+    // previously this happened unconditionally, so a failed save still showed the
+    // "submitted!" message with no indication anything went wrong.
+    let saved = false;
 
     try {
       // Upload files first and track their paths
@@ -352,16 +379,24 @@ const ChatbotInterface: React.FC = () => {
         console.error('Application insert error:', insertError);
       } else {
         console.log('Application saved successfully:', insertedApp);
+        saved = true;
       }
     } catch (err) {
       console.error('Error saving application:', err);
     }
 
-    setShowForm(false);
     setIsTyping(false);
-    setIsComplete(true);
     setIsSubmitting(false);
-    addBotMessage(getCompletionMessage(userPath, allData));
+
+    if (saved) {
+      setShowForm(false);
+      setIsComplete(true);
+      addBotMessage(getCompletionMessage(userPath, allData));
+    } else {
+      addBotMessage(
+        "Something went wrong and your application wasn't saved. Please try submitting again — your details are still filled in below. If it keeps failing, message us directly on WhatsApp so we don't lose your details."
+      );
+    }
   };
 
   const handleFileChange = (field: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -758,6 +793,16 @@ const ChatbotInterface: React.FC = () => {
             {showForm && userPath && PATH_CONFIGS[userPath]?.formFields && (
               <div className="bg-white/5 border border-white/20 rounded-xl p-6 mt-4">
                 <h3 className="font-orbitron text-lg font-bold text-white mb-4">Your Details</h3>
+                {selectedJob && (
+                  <div className="bg-coral/10 border border-coral/30 rounded-lg p-4 mb-4">
+                    <p className="text-xs text-coral font-space uppercase tracking-wide mb-1">You selected</p>
+                    <p className="font-space font-semibold text-white">{selectedJob.title}</p>
+                    <p className="text-sm text-gray-300">
+                      {selectedJob.company} &middot; {selectedJob.location}
+                      {selectedJob.salary ? ` · ${selectedJob.salary}` : ''}
+                    </p>
+                  </div>
+                )}
                 <form onSubmit={handleFormSubmit} className="space-y-4">
                   {PATH_CONFIGS[userPath].formFields!.map((field) => (
                     <div key={field.field}>

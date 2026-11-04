@@ -98,7 +98,10 @@ const Login: React.FC = () => {
     }
   }, [toast]);
 
-  const createApplicationFromConversation = async (clientId: string, data: ConversationData) => {
+  // Returns whether the save actually succeeded — previously this only logged
+  // failures to the console, so a user whose conversation failed to save as an
+  // application had no way to know; they were just silently redirected onward.
+  const createApplicationFromConversation = async (clientId: string, data: ConversationData): Promise<boolean> => {
     try {
       const { error } = await applicationsService.createApplication({
         client_id: clientId,
@@ -108,10 +111,22 @@ const Login: React.FC = () => {
         status: 'pending',
         conversation_context: data,
       });
-      if (!error) localStorage.removeItem('blueox_conversation_data');
+      if (error) {
+        console.error('Error creating application:', error);
+        return false;
+      }
+      localStorage.removeItem('blueox_conversation_data');
+      return true;
     } catch (err) {
       console.error('Error creating application:', err);
+      return false;
     }
+  };
+
+  // Navigates after letting a just-set toast actually be seen — otherwise
+  // navigate() unmounts this page almost immediately and the toast never shows.
+  const navigateAfterToast = (path: string, toastShown: boolean) => {
+    setTimeout(() => navigate(path, { replace: true }), toastShown ? 2000 : 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,10 +140,18 @@ const Login: React.FC = () => {
         if (error) {
           setError(error.message);
         } else {
+          let toastShown = false;
           if (conversationData && client) {
-            await createApplicationFromConversation(client.id, conversationData);
+            const saved = await createApplicationFromConversation(client.id, conversationData);
+            if (!saved) {
+              setToast({
+                message: "Signed in, but we couldn't save your previous conversation as an application. Please try the AI Consultant again, or message us on WhatsApp.",
+                type: 'error',
+              });
+              toastShown = true;
+            }
           }
-          navigate(from, { replace: true });
+          navigateAfterToast(from, toastShown);
         }
       } else {
         if (!fullName.trim()) {
@@ -143,18 +166,27 @@ const Login: React.FC = () => {
         if (error) {
           setError(error.message);
         } else {
+          let appSaveFailed = false;
           if (conversationData && client) {
-            await createApplicationFromConversation(client.id, conversationData);
+            const saved = await createApplicationFromConversation(client.id, conversationData);
+            appSaveFailed = !saved;
           }
 
-          setToast({
-            message: 'Account created! Welcome to Blue OX.',
-            type: 'success',
-          });
+          if (appSaveFailed) {
+            setToast({
+              message: "Account created, but we couldn't save your previous conversation as an application. Please try the AI Consultant again, or message us on WhatsApp.",
+              type: 'error',
+            });
+          } else {
+            setToast({
+              message: 'Account created! Welcome to Blue OX.',
+              type: 'success',
+            });
+          }
           // No explicit "come back here after signing in" page (e.g. not bounced
           // from a protected route) -> send fresh signups to their Portal, not the
           // chatbot home page, since that's the only place with anything to do.
-          navigate(explicitFrom || `/apply/${baseRole}`, { replace: true });
+          navigateAfterToast(explicitFrom || `/apply/${baseRole}`, true);
         }
       }
     } catch (err) {
