@@ -14,5 +14,5 @@ export async function updatePaymentPhase(
   phaseId: string,
   updateData: Record<string, unknown>
 ): Promise<void> {
-  await apiFetch(`/api/payment-phases/${phaseId}`, { method: 'PATCH', body: JSON.stringify(updateData) });
+  await apiFetch(`/api/payment-phases?id=${phaseId}`, { method: 'PATCH', body: JSON.stringify(updateData) });
 }

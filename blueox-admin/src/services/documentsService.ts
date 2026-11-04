@@ -12,5 +12,5 @@ export async function listAllDocuments(): Promise<{ data: Document[]; error: Err
 
 // verifiedBy is unused server-side now — the backend uses the authed admin's own id.
 export async function verifyDocument(id: string, _verifiedBy?: string): Promise<void> {
-  await apiFetch(`/api/documents/${id}`, { method: 'PATCH' });
+  await apiFetch(`/api/documents?id=${id}`, { method: 'PATCH' });
 }

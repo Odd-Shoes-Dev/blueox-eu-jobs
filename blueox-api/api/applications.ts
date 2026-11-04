@@ -1,16 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { applyCors } from '../../lib/cors';
-import { sql } from '../../lib/db';
-import { getAuthedClient } from '../../lib/auth';
+import { applyCors } from '../lib/cors';
+import { sql } from '../lib/db';
+import { getAuthedClient } from '../lib/auth';
 
-// Catch-all: GET/POST /api/applications (no id), PATCH/DELETE /api/applications/:id.
-// Consolidated from two files (applications.ts + applications/[id].ts) to stay
-// under Vercel's Hobby-plan 12-serverless-function limit.
+// Flat file, id passed as ?id=... rather than a path segment. Vercel's generic
+// (non-Next.js) serverless routing only supports [id].ts (always-required segment)
+// and [...id].ts (always-required catch-all) — neither matches the bare parent path
+// (e.g. /api/applications with no id), which an optional catch-all would need to.
+// Query-param routing sidesteps that entirely with one file, one route.
+//
+// GET/POST /api/applications (no id), PATCH/DELETE /api/applications?id=:id.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
 
-  const params = req.query.params;
-  const id = Array.isArray(params) ? params[0] : undefined;
+  const id = req.query.id as string | undefined;
 
   if (!id) {
     if (req.method === 'GET') {

@@ -30,9 +30,9 @@ export async function createJob(job: JobInput): Promise<void> {
 }
 
 export async function updateJob(id: string, job: JobInput): Promise<void> {
-  await apiFetch(`/api/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(job) });
+  await apiFetch(`/api/jobs?id=${id}`, { method: 'PATCH', body: JSON.stringify(job) });
 }
 
 export async function deleteJob(id: string): Promise<void> {
-  await apiFetch(`/api/jobs/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/jobs?id=${id}`, { method: 'DELETE' });
 }

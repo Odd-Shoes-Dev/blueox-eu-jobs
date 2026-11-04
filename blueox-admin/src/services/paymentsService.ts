@@ -20,5 +20,5 @@ export async function updatePaymentStatus(
   status: string,
   _verifiedBy?: string | null
 ): Promise<void> {
-  await apiFetch(`/api/payments/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  await apiFetch(`/api/payments?id=${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }

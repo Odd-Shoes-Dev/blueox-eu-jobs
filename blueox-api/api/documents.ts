@@ -1,19 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { applyCors } from '../../lib/cors';
-import { sql } from '../../lib/db';
-import { getAuthedClient } from '../../lib/auth';
-import { imagekit } from '../../lib/imagekit';
+import { applyCors } from '../lib/cors';
+import { sql } from '../lib/db';
+import { getAuthedClient } from '../lib/auth';
+import { imagekit } from '../lib/imagekit';
 
-// Catch-all: GET/POST /api/documents (no id), DELETE/PATCH /api/documents/:id.
-// Consolidated from two files to stay under Vercel's Hobby-plan 12-function limit.
+// Flat file, id passed as ?id=... rather than a path segment — see applications.ts
+// for why (Vercel's generic routing doesn't support optional catch-all segments).
+// GET/POST /api/documents (no id), DELETE/PATCH /api/documents?id=:id.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
 
   const authed = await getAuthedClient(req);
   if (!authed) return res.status(401).json({ error: 'Unauthorized' });
 
-  const params = req.query.params;
-  const id = Array.isArray(params) ? params[0] : undefined;
+  const id = req.query.id as string | undefined;
 
   if (!id) {
     if (req.method === 'GET') {

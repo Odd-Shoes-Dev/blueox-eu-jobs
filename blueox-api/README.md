@@ -14,12 +14,19 @@ frontends call it over HTTPS and send their session token in
 ## Routes are consolidated to fit Vercel's Hobby-plan function limit
 
 The Hobby plan caps a deployment at 12 serverless functions (one per file under
-`api/`). Related endpoints are grouped into a single file using Vercel's catch-all
-(`[[...params]].ts`) and dynamic (`[action].ts`) route conventions rather than one
-file per operation — e.g. `api/applications/[[...params]].ts` handles both
-`GET/POST /api/applications` and `PATCH/DELETE /api/applications/:id`. Currently 10
-functions total. If you add a genuinely new resource, prefer extending an existing
-catch-all file's routing over adding a new top-level file, to keep headroom under 12.
+`api/`). Related endpoints are grouped into a single flat file rather than one file
+per operation — e.g. `api/applications.ts` handles both `GET/POST /api/applications`
+and `PATCH/DELETE /api/applications?id=:id`. The id is a **query param, not a path
+segment** (`?id=...`), because Vercel's generic (non-Next.js) serverless routing only
+supports `[id].ts` (always-required segment) and `[...id].ts` (always-required
+catch-all) — neither matches the bare parent path the way a "list/create" route
+needs to. An optional catch-all (`[[...id]].ts`) would solve this in Next.js, but
+that convention isn't supported outside Next's own router, so it 404s on the bare
+path if you try it here. `api/auth/[action].ts` is a genuine exception — it's a
+single required segment (`signup`, `login`, etc.) that's never called bare, so the
+plain `[action].ts` convention works fine there. Currently 10 functions total. If
+you add a genuinely new resource, prefer extending an existing file's routing over
+adding a new top-level file, to keep headroom under 12.
 
 ## Auth: currently custom email/password, Clerk kept dormant
 

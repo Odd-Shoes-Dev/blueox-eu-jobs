@@ -27,10 +27,10 @@ export async function insertDocumentRecord(payload: {
 }
 
 // Deleting the documents row also deletes the underlying ImageKit file server-side
-// (via its stored imagekit_file_id) — see blueox-api/api/documents/[id].ts.
+// (via its stored imagekit_file_id) — see blueox-api/api/documents.ts.
 export async function deleteDocumentRecord(id: string): Promise<{ error: Error | null }> {
   try {
-    await apiFetch(`/api/documents/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/documents?id=${id}`, { method: 'DELETE' });
     return { error: null };
   } catch (error) {
     return { error: error as Error };
@@ -39,5 +39,5 @@ export async function deleteDocumentRecord(id: string): Promise<{ error: Error |
 
 // verifiedBy is unused server-side now — the backend uses the authed admin's own id.
 export async function verifyDocument(id: string, _verifiedBy?: string): Promise<void> {
-  await apiFetch(`/api/documents/${id}`, { method: 'PATCH' });
+  await apiFetch(`/api/documents?id=${id}`, { method: 'PATCH' });
 }
