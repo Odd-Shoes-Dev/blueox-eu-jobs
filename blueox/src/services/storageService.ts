@@ -22,7 +22,7 @@ interface ImageKitAuthParams {
 }
 
 async function getImageKitAuthParams(): Promise<ImageKitAuthParams> {
-  return apiFetch<ImageKitAuthParams>('/api/imagekit/auth');
+  return apiFetch<ImageKitAuthParams>('/api/imagekit-auth');
 }
 
 // Client-side only — a real attacker can bypass this (it's just JS), but it stops
@@ -94,7 +94,7 @@ export async function uploadDocument(
 // download. Word docs still download, since no browser previews those natively.
 export async function getDocumentUrl(path: string): Promise<string | null> {
   try {
-    const { url } = await apiFetch<{ url: string }>(`/api/files/download?path=${encodeURIComponent(path)}`);
+    const { url } = await apiFetch<{ url: string }>(`/api/files?path=${encodeURIComponent(path)}`);
     return url;
   } catch {
     return null;
@@ -103,7 +103,7 @@ export async function getDocumentUrl(path: string): Promise<string | null> {
 
 export async function downloadDocument(_kind: StorageKind, path: string): Promise<Blob | null> {
   try {
-    const { url } = await apiFetch<{ url: string }>(`/api/files/download?path=${encodeURIComponent(path)}`);
+    const { url } = await apiFetch<{ url: string }>(`/api/files?path=${encodeURIComponent(path)}`);
     const res = await fetch(url);
     if (!res.ok) return null;
     return res.blob();
@@ -118,7 +118,7 @@ export async function downloadDocument(_kind: StorageKind, path: string): Promis
 export async function deleteDocument(kind: StorageKind, path: string): Promise<{ error: Error | null }> {
   if (kind === 'client') return { error: null };
   try {
-    await apiFetch('/api/files/delete', { method: 'POST', body: JSON.stringify({ path }) });
+    await apiFetch('/api/files', { method: 'POST', body: JSON.stringify({ path }) });
     return { error: null };
   } catch (error) {
     return { error: error as Error };
