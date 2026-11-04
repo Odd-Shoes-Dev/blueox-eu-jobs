@@ -587,14 +587,12 @@ const ChatbotInterface: React.FC = () => {
                 <Briefcase className="w-4 h-4 mr-1" />
                 Jobs Open
               </Link>
-              <a 
-                href={WHATSAPP_LINK} 
-                target="_blank" 
-                rel="noopener noreferrer"
+              <Link
+                to="/login"
                 className="bg-coral hover:bg-coral-dark text-white font-space text-sm px-4 py-2 rounded-lg transition-colors"
               >
                 Sign in
-              </a>
+              </Link>
             </nav>
 
             {/* Mobile menu button */}
@@ -632,14 +630,12 @@ const ChatbotInterface: React.FC = () => {
                 >
                   Jobs Open
                 </Link>
-                <a 
-                  href={WHATSAPP_LINK} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                <Link
+                  to="/login"
                   className="text-coral font-space text-sm"
                 >
                   Sign in
-                </a>
+                </Link>
               </div>
             </div>
           )}

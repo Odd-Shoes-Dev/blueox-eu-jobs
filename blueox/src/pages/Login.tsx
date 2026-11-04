@@ -4,7 +4,7 @@
 // Clerk's prebuilt UI) works again below.
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogIn, UserPlus, AlertCircle, CheckCircle, X, MessageSquare } from 'lucide-react';
+import { LogIn, UserPlus, AlertCircle, CheckCircle, X, MessageSquare, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import * as applicationsService from '../services/applicationsService';
 
@@ -27,6 +27,7 @@ const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<'student' | 'workforce' | 'company'>('student');
@@ -34,12 +35,22 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [conversationData, setConversationData] = useState<ConversationData | null>(null);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, client, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
+  const explicitFrom = (location.state as { from?: { pathname?: string } })?.from?.pathname;
+  const from = explicitFrom || '/';
   const stateConversationData = (location.state as { conversationData?: ConversationData })?.conversationData;
+
+  // Visiting /login while already signed in (e.g. clicking "Sign in" again, or
+  // landing here from a stale link) should bounce straight to where that account
+  // belongs, not show the form again.
+  useEffect(() => {
+    if (authLoading || !client) return;
+    const destination = explicitFrom || (client.role === 'admin' ? '/admin' : `/apply/${client.role === 'workforce' ? 'workforce' : 'student'}`);
+    navigate(destination, { replace: true });
+  }, [authLoading, client, explicitFrom, navigate]);
 
   useEffect(() => {
     let data: ConversationData | null = null;
@@ -140,7 +151,10 @@ const Login: React.FC = () => {
             message: 'Account created! Welcome to Blue OX.',
             type: 'success',
           });
-          navigate(from, { replace: true });
+          // No explicit "come back here after signing in" page (e.g. not bounced
+          // from a protected route) -> send fresh signups to their Portal, not the
+          // chatbot home page, since that's the only place with anything to do.
+          navigate(explicitFrom || `/apply/${baseRole}`, { replace: true });
         }
       }
     } catch (err) {
@@ -148,6 +162,14 @@ const Login: React.FC = () => {
     }
     setLoading(false);
   };
+
+  if (authLoading || client) {
+    return (
+      <div className="min-h-screen flex items-center justify-center pt-20">
+        <div className="animate-spin w-8 h-8 border-4 border-coral border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="font-inter pt-20 min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
@@ -260,15 +282,24 @@ const Login: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent"
-              placeholder="Minimum 6 characters"
-              minLength={6}
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent pr-12"
+                placeholder="Minimum 6 characters"
+                minLength={6}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
 
           <button

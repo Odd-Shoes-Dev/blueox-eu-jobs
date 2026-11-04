@@ -25,12 +25,40 @@ async function getImageKitAuthParams(): Promise<ImageKitAuthParams> {
   return apiFetch<ImageKitAuthParams>('/api/imagekit/auth');
 }
 
+// Client-side only — a real attacker can bypass this (it's just JS), but it stops
+// accidental misuse (huge files, wrong file types) before anything is sent to
+// ImageKit. See blueox-api/AUTH.md-adjacent note: real server-side enforcement
+// would mean routing uploads through our own backend instead of direct-to-ImageKit.
+const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+
+function validateFile(file: File): Error | null {
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return new Error(`File is too large (max ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB)`);
+  }
+  // Some browsers/OSes leave file.type empty for files they don't recognize —
+  // only reject when it's set and not allowed, to avoid false rejections.
+  if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+    return new Error('Unsupported file type. Allowed: PDF, JPG, PNG, DOC, DOCX');
+  }
+  return null;
+}
+
 export async function uploadDocument(
   kind: StorageKind,
   path: string,
   file: File,
   _options?: { upsert?: boolean }
 ): Promise<{ error: Error | null; fileId?: string }> {
+  const validationError = validateFile(file);
+  if (validationError) return { error: validationError };
+
   try {
     const auth = await getImageKitAuthParams();
     const fileName = path.split('/').pop() || file.name;
