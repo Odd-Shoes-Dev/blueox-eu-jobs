@@ -432,11 +432,28 @@ const Admin: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Selected job */}
+                          {/* Selected job — current submissions store a snapshot
+                              object (title/company/location/salary/type); older
+                              applications only have the raw job id string, so fall
+                              back to showing that when it's not an object. */}
                           {app.data.selectedJob && (
                             <div className="mt-4 p-3 bg-green-50 rounded-lg">
                               <h5 className="font-medium text-green-800 mb-1">Selected Job</h5>
-                              <p className="text-sm text-green-700">Job ID: {app.data.selectedJob as string}</p>
+                              {typeof app.data.selectedJob === 'object' ? (
+                                <div className="text-sm text-green-700">
+                                  <p className="font-medium">{(app.data.selectedJob as { title?: string }).title}</p>
+                                  <p>
+                                    {(app.data.selectedJob as { company?: string }).company}
+                                    {' · '}
+                                    {(app.data.selectedJob as { location?: string }).location}
+                                    {(app.data.selectedJob as { salary?: string }).salary
+                                      ? ` · ${(app.data.selectedJob as { salary?: string }).salary}`
+                                      : ''}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-green-700">Job ID: {app.data.selectedJob as string}</p>
+                              )}
                             </div>
                           )}
                         </div>

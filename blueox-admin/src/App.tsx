@@ -706,7 +706,27 @@ const AdminDashboard: React.FC = () => {
                                       {appData.experienceYears && <div><span className="text-gray-500">Experience:</span> {String(appData.experienceYears)}</div>}
                                       {appData.salaryExpectation && <div><span className="text-gray-500">Expected Salary:</span> {String(appData.salaryExpectation)}</div>}
                                       {appData.availability && <div><span className="text-gray-500">Availability:</span> {String(appData.availability)}</div>}
-                                      {appData.selectedJob && <div><span className="text-gray-500">Selected Job:</span> {String(appData.selectedJob)}</div>}
+                                      {/* Current submissions store a snapshot object
+                                          (title/company/location/salary); older
+                                          applications only have the raw job id string. */}
+                                      {appData.selectedJob && (
+                                        typeof appData.selectedJob === 'object' ? (
+                                          <div>
+                                            <span className="text-gray-500">Selected Job:</span>{' '}
+                                            {(appData.selectedJob as { title?: string }).title}
+                                            {' ('}
+                                            {(appData.selectedJob as { company?: string }).company}
+                                            {', '}
+                                            {(appData.selectedJob as { location?: string }).location}
+                                            {(appData.selectedJob as { salary?: string }).salary
+                                              ? `, ${(appData.selectedJob as { salary?: string }).salary}`
+                                              : ''}
+                                            {')'}
+                                          </div>
+                                        ) : (
+                                          <div><span className="text-gray-500">Selected Job ID:</span> {String(appData.selectedJob)}</div>
+                                        )
+                                      )}
                                     </div>
                                   </div>
 
