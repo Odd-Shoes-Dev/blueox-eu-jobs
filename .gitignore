@@ -19,8 +19,10 @@
 **/eggs/
 **/.eggs/
 **/lib/
-# But keep src/lib folders for frontend code
+# But keep src/lib folders for frontend code, and blueox-api/lib (its backend
+# source, not a Python/venv lib dir — this app has no src/ wrapper)
 !**/src/lib/
+!blueox-api/lib/
 **/lib64/
 **/parts/
 **/sdist/
@@ -238,6 +240,8 @@
 !blueox/public/**
 !blueox-admin/public/
 !blueox-admin/public/**
+!blueox-api/public/
+!blueox-api/public/**
 
 # Vue.js
 **/dist/
