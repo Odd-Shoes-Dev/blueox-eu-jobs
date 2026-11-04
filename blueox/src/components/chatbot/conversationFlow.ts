@@ -4,7 +4,7 @@ import { PathConfig, ChatChoice } from './types';
 export const CHARACTER = {
   name: "Blue OX",
   role: "Your European Job Assistant",
-  profilePic: "/assets/pfp.png",
+  profilePic: "/pfp.png",
   greeting: "Hey there! I'm Blue OX, your buddy for finding awesome opportunities in Europe!",
   status: "Online - Ready to help!"
 };

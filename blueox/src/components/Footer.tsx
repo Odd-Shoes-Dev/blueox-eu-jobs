@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
         <div className="grid md:grid-cols-4 gap-8">
           {/* Logo & Description */}
           <div className="col-span-2 md:col-span-1">
-            <img src="/assets/logo.png" alt="Blue OX" className="h-10 mb-4 brightness-0 invert" />
+            <img src="/logo.png" alt="Blue OX" className="h-10 mb-4 brightness-0 invert" />
             <p className="text-gray-300 font-inter text-sm">
               Connecting skilled workers with European opportunities. Your trusted partner for Blue Collar jobs in Europe.
             </p>
