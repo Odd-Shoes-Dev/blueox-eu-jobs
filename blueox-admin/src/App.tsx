@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, LogOut, Shield, Eye, EyeOff, Trash2, ChevronDown, ChevronUp, Edit2, Upload } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { getFileKind } from './lib/fileKind';
 import type { Client, Application, Document as DocType, Payment, Job, ClientPaymentPhases } from './services/types';
 import * as clientsService from './services/clientsService';
 import * as applicationsService from './services/applicationsService';
@@ -126,6 +127,25 @@ const AdminDashboard: React.FC = () => {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [editingApplication, setEditingApplication] = useState<(Application & { client?: Client }) | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; kind: 'image' | 'pdf' } | null>(null);
+  // Tracks which individual preview/download buttons are mid-request, keyed per
+  // button so only the clicked one shows a spinner (Preview/Download can each be
+  // slow — Neon's free-tier compute cold-starts after idling — with no other
+  // visual feedback otherwise).
+  const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
+  const isLoading = (key: string) => loadingKeys.has(key);
+  const runWithLoading = async (key: string, fn: () => Promise<void>) => {
+    setLoadingKeys((prev) => new Set(prev).add(key));
+    try {
+      await fn();
+    } finally {
+      setLoadingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (isAdmin) fetchAllData();
@@ -312,6 +332,22 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Opens a PDF/image inline in a modal on this same page. Word docs can't be
+  // previewed by any browser, so those fall back to telling the admin to download.
+  const previewApplicationDocument = async (filePath: string, fieldName?: string) => {
+    const kind = getFileKind(filePath);
+    if (kind === 'other') {
+      alert('Preview is not available for this file type — use Download instead.');
+      return;
+    }
+    const url = await storageService.getDocumentUrl(filePath);
+    if (!url) {
+      alert('Failed to open preview');
+      return;
+    }
+    setPreviewFile({ url, name: fieldName || filePath.split('/').pop() || 'Document', kind });
+  };
+
   // Delete application document from storage
   const deleteApplicationDocument = async (filePath: string, fieldName: string) => {
     if (!editingApplication) return;
@@ -349,16 +385,17 @@ const AdminDashboard: React.FC = () => {
       const fileName = `${Date.now()}-${fieldName}-${file.name}`;
       const filePath = `applications/${fileName}`;
 
-      const { error } = await storageService.uploadDocument('admin', filePath, file);
-      if (error) {
+      const { error, path: storedPath } = await storageService.uploadDocument('admin', filePath, file);
+      if (error || !storedPath) {
         console.error('Upload error:', error);
-        alert(`Failed to upload: ${error.message}`);
+        alert(`Failed to upload: ${error?.message ?? 'unknown error'}`);
         return;
       }
 
-      // Update application data with new document path
+      // Update application data with new document path — the real ImageKit path,
+      // not our local `filePath` guess (see storageService.uploadDocument's comment).
       const updatedDocs = { ...(editingApplication.data?.uploadedDocuments as Record<string, string> || {}) };
-      updatedDocs[fieldName] = filePath;
+      updatedDocs[fieldName] = storedPath;
 
       setEditingApplication({
         ...editingApplication,
@@ -677,19 +714,45 @@ const AdminDashboard: React.FC = () => {
                                   {appData.uploadedDocuments && (
                                     <div className="mt-4 pt-4 border-t">
                                       <h5 className="font-medium text-gray-700 mb-2">Uploaded Documents</h5>
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="space-y-2">
                                         {/* Handle new format: Record<string, string> */}
                                         {typeof appData.uploadedDocuments === 'object' && !Array.isArray(appData.uploadedDocuments) ? (
                                           Object.entries(appData.uploadedDocuments as Record<string, string>).map(([fieldName, filePath]) => (
-                                            <button
+                                            <div
                                               key={fieldName}
-                                              onClick={() => downloadApplicationDocument(String(filePath), fieldName)}
-                                              className="flex items-center space-x-1 bg-green-100 text-green-800 px-3 py-1 rounded text-xs hover:bg-green-200 transition"
-                                              title={`Download ${fieldName}`}
+                                              className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"
                                             >
-                                              <Download className="w-3 h-3" />
-                                              <span className="capitalize">{fieldName.replace(/([A-Z])/g, ' $1').trim()}</span>
-                                            </button>
+                                              <div className="flex items-center space-x-2">
+                                                <FileText className="w-4 h-4 text-gray-500" />
+                                                <span className="text-sm font-medium capitalize">{fieldName.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                              </div>
+                                              <div className="flex items-center space-x-2">
+                                                <button
+                                                  onClick={() => runWithLoading(`preview-${app.id}-${fieldName}`, () => previewApplicationDocument(String(filePath), fieldName))}
+                                                  disabled={isLoading(`preview-${app.id}-${fieldName}`)}
+                                                  className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
+                                                  title="Preview"
+                                                >
+                                                  {isLoading(`preview-${app.id}-${fieldName}`) ? (
+                                                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                                  ) : (
+                                                    <Eye className="w-4 h-4" />
+                                                  )}
+                                                </button>
+                                                <button
+                                                  onClick={() => runWithLoading(`download-${app.id}-${fieldName}`, () => downloadApplicationDocument(String(filePath), fieldName))}
+                                                  disabled={isLoading(`download-${app.id}-${fieldName}`)}
+                                                  className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
+                                                  title="Download"
+                                                >
+                                                  {isLoading(`download-${app.id}-${fieldName}`) ? (
+                                                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                                  ) : (
+                                                    <Download className="w-4 h-4" />
+                                                  )}
+                                                </button>
+                                              </div>
+                                            </div>
                                           ))
                                         ) : (
                                           /* Handle old format: string[] (just field names, no download) */
@@ -697,9 +760,10 @@ const AdminDashboard: React.FC = () => {
                                             ? appData.uploadedDocuments
                                             : []
                                           ).map((doc: string, idx: number) => (
-                                            <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                                              {doc}
-                                            </span>
+                                            <div key={idx} className="flex items-center space-x-2 bg-gray-50 p-3 rounded-lg">
+                                              <FileText className="w-4 h-4 text-gray-500" />
+                                              <span className="text-sm font-medium">{doc}</span>
+                                            </div>
                                           ))
                                         )}
                                       </div>
@@ -1118,11 +1182,29 @@ const AdminDashboard: React.FC = () => {
                           <div className="flex items-center space-x-2">
                             <button
                               type="button"
-                              onClick={() => downloadApplicationDocument(String(filePath), fieldName)}
-                              className="text-blue-600 hover:text-blue-800 p-1"
+                              onClick={() => runWithLoading(`preview-${editingApplication?.id}-${fieldName}`, () => previewApplicationDocument(String(filePath), fieldName))}
+                              disabled={isLoading(`preview-${editingApplication?.id}-${fieldName}`)}
+                              className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
+                              title="Preview"
+                            >
+                              {isLoading(`preview-${editingApplication?.id}-${fieldName}`) ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => runWithLoading(`download-${editingApplication?.id}-${fieldName}`, () => downloadApplicationDocument(String(filePath), fieldName))}
+                              disabled={isLoading(`download-${editingApplication?.id}-${fieldName}`)}
+                              className="text-blue-600 hover:text-blue-800 p-1 disabled:opacity-50"
                               title="Download"
                             >
-                              <Download className="w-4 h-4" />
+                              {isLoading(`download-${editingApplication?.id}-${fieldName}`) ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4" />
+                              )}
                             </button>
                             <button
                               type="button"
@@ -1208,6 +1290,30 @@ const AdminDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {previewFile && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="bg-white rounded-xl w-full max-w-4xl h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-medium text-navy truncate">{previewFile.name}</h3>
+              <button onClick={() => setPreviewFile(null)}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100">
+              {previewFile.kind === 'image' ? (
+                <img src={previewFile.url} alt={previewFile.name} className="max-w-full mx-auto" />
+              ) : (
+                <iframe src={previewFile.url} className="w-full h-full" title={previewFile.name} />
+              )}
+            </div>
           </div>
         </div>
       )}

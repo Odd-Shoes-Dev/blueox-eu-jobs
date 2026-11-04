@@ -48,7 +48,7 @@ export async function uploadDocument(
   kind: StorageKind,
   path: string,
   file: File
-): Promise<{ error: Error | null; fileId?: string }> {
+): Promise<{ error: Error | null; fileId?: string; path?: string }> {
   const validationError = validateFile(file);
   if (validationError) return { error: validationError };
 
@@ -69,9 +69,28 @@ export async function uploadDocument(
       publicKey: auth.publicKey,
     });
 
-    return { error: null, fileId: result.fileId };
+    // The real, full path the file actually landed at (relative to the ImageKit
+    // root folder) — includes the `${kind}-documents/` segment the `folder` above
+    // added, which the caller's own `path` input does NOT include. Callers must
+    // store/use THIS path for later download/delete/preview, not their input path,
+    // or lookups will target a location that was never actually written to.
+    const storedPath = `${kind}-documents/${path}`.replace(/\/+/g, '/');
+
+    return { error: null, fileId: result.fileId, path: storedPath };
   } catch (error) {
     return { error: error as Error };
+  }
+}
+
+// Returns the short-lived signed URL itself (no blob fetch) — for opening a file in
+// a new tab so the browser renders it inline (PDFs/images) instead of forcing a
+// download. Word docs still download, since no browser previews those natively.
+export async function getDocumentUrl(path: string): Promise<string | null> {
+  try {
+    const { url } = await apiFetch<{ url: string }>(`/api/files/download?path=${encodeURIComponent(path)}`);
+    return url;
+  } catch {
+    return null;
   }
 }
 

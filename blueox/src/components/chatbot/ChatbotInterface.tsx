@@ -327,11 +327,13 @@ const ChatbotInterface: React.FC = () => {
       for (const [fieldName, file] of Object.entries(uploadedFiles)) {
         const fileName = `${Date.now()}-${fieldName}-${file.name}`;
         const filePath = `applications/${fileName}`;
-        const { error } = await storageService.uploadDocument('admin', filePath, file);
-        if (error) {
+        const { error, path: storedPath } = await storageService.uploadDocument('admin', filePath, file);
+        if (error || !storedPath) {
           console.error('Upload error:', error);
         } else {
-          uploadedDocumentPaths[fieldName] = filePath;
+          // The real ImageKit path, not our local `filePath` guess — see
+          // storageService.uploadDocument's comment for why these can differ.
+          uploadedDocumentPaths[fieldName] = storedPath;
         }
       }
 
