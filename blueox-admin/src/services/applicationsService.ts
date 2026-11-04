@@ -11,7 +11,7 @@ export async function listApplications(): Promise<{ data: Application[]; error: 
 }
 
 export async function updateApplicationStatus(id: string, status: string): Promise<void> {
-  await apiFetch(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  await apiFetch(`/api/applications?id=${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
 export async function updateApplication(
@@ -19,7 +19,7 @@ export async function updateApplication(
   updates: Record<string, unknown>
 ): Promise<{ error: Error | null }> {
   try {
-    await apiFetch(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    await apiFetch(`/api/applications?id=${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
     return { error: null };
   } catch (error) {
     return { error: error as Error };
@@ -28,7 +28,7 @@ export async function updateApplication(
 
 export async function deleteApplication(id: string): Promise<{ error: Error | null }> {
   try {
-    await apiFetch(`/api/applications/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/applications?id=${id}`, { method: 'DELETE' });
     return { error: null };
   } catch (error) {
     return { error: error as Error };
