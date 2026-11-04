@@ -82,7 +82,7 @@ const Login: React.FC = () => {
     <div className="font-inter pt-20 min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <img src="/images/logo.png" alt="Blue OX" className="h-12 mx-auto mb-4" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <img src="/logo.png" alt="Blue OX" className="h-12 mx-auto mb-4" onError={(e) => { e.currentTarget.style.display = 'none' }} />
         </div>
 
         {stateConversationData && !isLogin && (

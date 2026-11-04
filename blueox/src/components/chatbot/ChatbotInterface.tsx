@@ -449,7 +449,7 @@ const ChatbotInterface: React.FC = () => {
             <div className="flex items-center justify-between h-16">
               {/* Logo and Guarantee */}
               <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                <img src="/assets/logo1.png" alt="Blue OX" className="h-8 flex-shrink-0" />
+                <img src="/logo1.png" alt="Blue OX" className="h-8 flex-shrink-0" />
                 {/* Short version for mobile */}
                 <span className="sm:hidden text-xs font-medium text-white/80">
                   Guaranteed Job in Europe
@@ -550,7 +550,7 @@ const ChatbotInterface: React.FC = () => {
             {/* Logo with Guarantee */}
             <Link to="/" className="flex items-center space-x-2 sm:space-x-3">
               <img
-                src="/assets/logo1.png"
+                src="/logo1.png"
                 alt="Blue OX"
                 className="h-8 sm:h-10 w-auto"
               />

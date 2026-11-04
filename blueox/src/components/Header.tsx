@@ -16,7 +16,7 @@ const Header: React.FC = () => {
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-3">
-            <img src="/assets/logo1.png" alt="Blue OX" className="h-10" />
+            <img src="/logo1.png" alt="Blue OX" className="h-10" />
             <span className="hidden sm:block text-sm font-medium text-navy max-w-[200px] leading-tight">
               Guaranteed Job in Europe in 90 Days Or We Work for Free
             </span>

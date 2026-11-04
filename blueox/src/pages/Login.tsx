@@ -209,7 +209,7 @@ const Login: React.FC = () => {
         )}
 
         <div className="text-center mb-8">
-          <img src="/images/logo.png" alt="Blue OX" className="h-12 mx-auto mb-4" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <img src="/logo.png" alt="Blue OX" className="h-12 mx-auto mb-4" onError={(e) => { e.currentTarget.style.display = 'none' }} />
           <h1 className="font-orbitron text-2xl font-bold text-navy">
             {isLogin ? 'Welcome Back' : 'Create Account'}
           </h1>
