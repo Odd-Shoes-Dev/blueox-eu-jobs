@@ -37,10 +37,14 @@ psql "$NEON_DATABASE_URL" -f 0007_create_client_payment_phases.sql
 psql "$NEON_DATABASE_URL" -f 0008_create_job_applications.sql
 psql "$NEON_DATABASE_URL" -f 0009_alter_clients_auth_user_id_to_text.sql
 psql "$NEON_DATABASE_URL" -f 0010_add_imagekit_file_id_to_documents.sql
+psql "$NEON_DATABASE_URL" -f 0011_add_custom_auth_columns_to_clients.sql
 ```
 
 0009 and 0010 are Stage 2 deltas (Clerk auth + ImageKit storage) — run them even if
-you already ran 0001-0008 earlier.
+you already ran 0001-0008 earlier. 0011 adds password/verification/reset columns for
+the custom email+password auth now in use instead of Clerk (see
+blueox-api/AUTH.md) — it adds a UNIQUE index on clients.email, so if that fails,
+check for duplicate emails in existing rows first (likely test data) before rerunning.
 
 Order matters because of foreign keys: `clients` and `jobs` have none and go first;
 `applications` references `clients`; `documents`/`payments`/`client_payment_phases`

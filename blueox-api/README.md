@@ -16,6 +16,11 @@ session token in `Authorization: Bearer <token>`.
 - `DATABASE_URL` — Neon connection string
 - `CLERK_SECRET_KEY` — from the Clerk dashboard
 - `IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, `IMAGEKIT_URL_ENDPOINT` — from ImageKit
+- `IMAGEKIT_ROOT_FOLDER` — scopes every path this backend touches under one folder
+  in the ImageKit media library (e.g. `/blueox`), since the account's media library
+  holds other projects' folders too. The frontends never configure this themselves —
+  `GET /api/imagekit/auth` hands it to them, so it only ever needs to change in one
+  place.
 - `ALLOWED_ORIGINS` — comma-separated list of frontend origins allowed to call this
   API (e.g. `https://blueoxjobs.eu,https://www.blueoxjobs.eu,https://admin.blueoxjobs.eu,http://localhost:3000,http://localhost:3001`)
 

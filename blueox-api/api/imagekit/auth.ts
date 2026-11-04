@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from '../../lib/cors';
-import { imagekit } from '../../lib/imagekit';
+import { imagekit, IMAGEKIT_ROOT_FOLDER } from '../../lib/imagekit';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
@@ -16,5 +16,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     signature,
     publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
     urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+    rootFolder: IMAGEKIT_ROOT_FOLDER,
   });
 }

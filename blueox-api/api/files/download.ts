@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from '../../lib/cors';
 import { getAuthedClient } from '../../lib/auth';
-import { imagekit } from '../../lib/imagekit';
+import { imagekit, toRootScopedPath } from '../../lib/imagekit';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
@@ -15,6 +15,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const path = req.query.path as string | undefined;
   if (!path) return res.status(400).json({ error: 'path is required' });
 
-  const url = imagekit.url({ path: `/${path}`.replace(/\/+/g, '/'), signed: true, expireSeconds: 300 });
+  const url = imagekit.url({ path: toRootScopedPath(path), signed: true, expireSeconds: 300 });
   res.status(200).json({ url });
 }

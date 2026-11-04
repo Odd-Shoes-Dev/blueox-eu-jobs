@@ -1,21 +1,15 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ClerkProvider } from '@clerk/clerk-react'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import './index.css'
 import App from './App.tsx'
 
-const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-if (!clerkPublishableKey) {
-  throw new Error('VITE_CLERK_PUBLISHABLE_KEY is not set');
-}
-
+// Clerk is intentionally not wired up right now — see blueox-api/AUTH.md and
+// main.clerk.tsx for the dormant ClerkProvider-wrapped version.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <ClerkProvider publishableKey={clerkPublishableKey}>
-        <App />
-      </ClerkProvider>
+      <App />
     </ErrorBoundary>
   </StrictMode>,
 )
