@@ -4,12 +4,12 @@ import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, P
 import { useAuth } from '../contexts/AuthContext';
 import { getFileKind } from '../lib/fileKind';
 import type { Client, Application, Document as DocType, Payment, Job } from '../services/types';
-import * as clientsService from '../services/clientsService';
 import * as applicationsService from '../services/applicationsService';
 import * as documentsService from '../services/documentsService';
 import * as paymentsService from '../services/paymentsService';
 import * as jobsService from '../services/jobsService';
 import * as storageService from '../services/storageService';
+import * as adminService from '../services/adminService';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs';
 
@@ -58,13 +58,14 @@ const Admin: React.FC = () => {
 
   const fetchAllData = async () => {
     setLoading(true);
-    const [clientsData, appsData, docsData, paymentsData, jobsData] = await Promise.all([
-      clientsService.listClients(),
-      applicationsService.listApplications(),
-      documentsService.listAllDocuments(),
-      paymentsService.listPayments(),
-      jobsService.listJobs(),
-    ]);
+    // One request instead of 5 — see adminService.getAdminDashboard's comment.
+    const {
+      clients: clientsData,
+      applications: appsData,
+      documents: docsData,
+      payments: paymentsData,
+      jobs: jobsData,
+    } = await adminService.getAdminDashboard();
 
     setClients(clientsData);
 

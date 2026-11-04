@@ -10,6 +10,7 @@ import * as paymentsService from './services/paymentsService';
 import * as paymentPhasesService from './services/paymentPhasesService';
 import * as jobsService from './services/jobsService';
 import * as storageService from './services/storageService';
+import * as adminService from './services/adminService';
 
 type Tab = 'applications' | 'jobs';
 
@@ -155,38 +156,33 @@ const AdminDashboard: React.FC = () => {
     setLoading(true);
 
     try {
-      const [clientsData, appsRes, docsRes, paymentsRes, paymentPhasesRes, jobsRes] = await Promise.all([
-        clientsService.listClients(),
-        applicationsService.listApplications(),
-        documentsService.listAllDocuments(),
-        paymentsService.listPayments(),
-        paymentPhasesService.listPaymentPhases(),
-        jobsService.listJobs(),
-      ]);
+      // One request instead of 6 — see adminService.getAdminDashboard's comment.
+      const {
+        clients: clientsData,
+        applications: appsData,
+        documents: docsData,
+        payments: paymentsData,
+        paymentPhases: paymentPhasesData,
+        jobs: jobsData,
+      } = await adminService.getAdminDashboard();
 
       setClients(clientsData);
 
       const clientMap = Object.fromEntries(clientsData.map(c => [c.id, c]));
 
-      if (appsRes.error) console.log('Applications fetch error:', appsRes.error.message);
-      if (docsRes.error) console.log('Documents fetch error:', docsRes.error.message);
-      if (paymentsRes.error) console.log('Payments fetch error:', paymentsRes.error.message);
-      if (paymentPhasesRes.error) console.log('Payment phases fetch error:', paymentPhasesRes.error.message);
-      if (jobsRes.error) console.log('Jobs fetch error:', jobsRes.error.message);
-
-      setApplications(appsRes.data.map(a => ({ ...a, client: clientMap[a.client_id as string] })));
-      setDocuments(docsRes.data.map(d => ({ ...d, client: clientMap[d.client_id] })));
-      setPayments(paymentsRes.data.map(p => ({ ...p, client: clientMap[p.client_id] })));
-      setPaymentPhases(paymentPhasesRes.data.map(pp => ({ ...pp, client: clientMap[pp.client_id] })));
-      setJobs(jobsRes.data);
+      setApplications(appsData.map(a => ({ ...a, client: clientMap[a.client_id as string] })));
+      setDocuments(docsData.map(d => ({ ...d, client: clientMap[d.client_id] })));
+      setPayments(paymentsData.map(p => ({ ...p, client: clientMap[p.client_id] })));
+      setPaymentPhases(paymentPhasesData.map(pp => ({ ...pp, client: clientMap[pp.client_id] })));
+      setJobs(jobsData);
 
       console.log('Data fetch completed:', {
         clients: clientsData.length,
-        applications: appsRes.data.length,
-        documents: docsRes.data.length,
-        payments: paymentsRes.data.length,
-        paymentPhases: paymentPhasesRes.data.length,
-        jobs: jobsRes.data.length
+        applications: appsData.length,
+        documents: docsData.length,
+        payments: paymentsData.length,
+        paymentPhases: paymentPhasesData.length,
+        jobs: jobsData.length
       });
 
     } catch (error) {
