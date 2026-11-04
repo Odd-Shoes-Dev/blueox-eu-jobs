@@ -1,7 +1,6 @@
 import React from 'react';
 import { Phone, MapPin, Mail, MessageCircle } from 'lucide-react';
-
-const WHATSAPP_LINK = 'https://wa.me/message/F6QOLB6IS3VHF1';
+import { WHATSAPP_LINK } from '../components/chatbot/conversationFlow';
 
 const Contact: React.FC = () => {
   return (

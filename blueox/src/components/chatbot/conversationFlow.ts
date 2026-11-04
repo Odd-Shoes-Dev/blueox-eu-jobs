@@ -44,7 +44,10 @@ Here's what I do: I find you the right opportunity, walk you through the paperwo
 
 So tell me, what brings you here today?`;
 
-export const WHATSAPP_LINK = "https://wa.me/message/F6QOLB6IS3VHF1";
+// Single source of truth for the business WhatsApp link — Contact.tsx and Jobs.tsx
+// import this instead of redefining their own copy. Override via VITE_WHATSAPP_LINK
+// to change the number without touching code.
+export const WHATSAPP_LINK = import.meta.env.VITE_WHATSAPP_LINK || "https://wa.me/message/F6QOLB6IS3VHF1";
 
 // Company flow - redirect to WhatsApp
 export const COMPANY_REDIRECT_MESSAGE = `Great! We specialize in connecting companies with skilled Blue Collar workers across Europe.
