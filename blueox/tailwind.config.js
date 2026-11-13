@@ -23,9 +23,9 @@ module.exports = {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         coral: {
-          DEFAULT: '#FF4040',
-          dark: '#E63636',
-          light: '#FF6B6B',
+          DEFAULT: '#FF7900',
+          dark: '#E66D00',
+          light: '#FF9640',
         },
         navy: {
           DEFAULT: '#1A365D',
@@ -33,7 +33,7 @@ module.exports = {
           light: '#2A4A7A',
         },
         primary: {
-          DEFAULT: '#FF4040',
+          DEFAULT: '#FF7900',
           foreground: '#FFFFFF',
         },
         secondary: {
