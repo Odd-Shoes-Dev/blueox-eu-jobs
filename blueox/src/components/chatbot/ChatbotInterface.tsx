@@ -15,6 +15,7 @@ import {
 import * as jobsService from '../../services/jobsService';
 import * as applicationsService from '../../services/applicationsService';
 import * as storageService from '../../services/storageService';
+import HomeMarketingSections from '../home/HomeMarketingSections';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
@@ -477,9 +478,9 @@ const ChatbotInterface: React.FC = () => {
   // Hero Section Component
   if (showHero) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-navy via-navy-dark to-navy flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-[#062d79] to-[#075bc4] flex flex-col scroll-smooth">
         {/* Fixed Header */}
-        <header className="fixed top-0 left-0 right-0 z-50 bg-navy-dark/95 backdrop-blur-sm border-b border-white/10">
+        <header className="fixed top-0 left-0 right-0 z-50 bg-[#062d79]/95 backdrop-blur-sm border-b border-white/10">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between h-16">
               {/* Logo and Guarantee */}
@@ -497,10 +498,17 @@ const ChatbotInterface: React.FC = () => {
 
               {/* Desktop Navigation */}
               <nav className="hidden md:flex items-center space-x-6 flex-shrink-0">
+                <a href="#work" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Work in Europe</a>
+                <a href="#study" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Study in Europe</a>
+                <a href="#verify" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">How We Verify</a>
+                <a href="#contact" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Contact</a>
                 <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Contact us</a>
                 <Link to="/jobs" className="text-gray-300 hover:text-coral font-space text-sm transition-colors flex items-center">
                   <Briefcase className="w-4 h-4 mr-1" /> Jobs Open
                 </Link>
+                <a href="#checker" className="bg-coral hover:bg-coral-dark text-white font-space text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                  Check My Offer
+                </a>
               </nav>
 
               {/* Mobile Menu Button */}
@@ -516,6 +524,18 @@ const ChatbotInterface: React.FC = () => {
             {mobileMenuOpen && (
               <div className="md:hidden py-4 border-t border-white/10">
                 <div className="flex flex-col space-y-3">
+                  <a href="#work" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
+                    Work in Europe
+                  </a>
+                  <a href="#study" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
+                    Study in Europe
+                  </a>
+                  <a href="#verify" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
+                    How We Verify
+                  </a>
+                  <a href="#contact" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
+                    Contact
+                  </a>
                   <a
                     href={WHATSAPP_LINK}
                     target="_blank"
@@ -530,6 +550,13 @@ const ChatbotInterface: React.FC = () => {
                   >
                     <Briefcase className="w-4 h-4 mr-1" /> Jobs Open
                   </Link>
+                  <a
+                    href="#checker"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="bg-coral hover:bg-coral-dark text-white font-space text-sm font-semibold px-4 py-2 rounded-lg text-center"
+                  >
+                    Check My Offer
+                  </a>
                 </div>
               </div>
             )}
@@ -537,7 +564,7 @@ const ChatbotInterface: React.FC = () => {
         </header>
 
         {/* Hero Content */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4 pt-20">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 pt-20 pb-16">
           {/* Hero Text with Typing Animation */}
           <h1 className="font-orbitron text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-center mb-2">
             <span className="text-white">{typingText.slice(0, 4)}</span>
@@ -572,6 +599,8 @@ const ChatbotInterface: React.FC = () => {
             Message
           </button>
         </div>
+
+        <HomeMarketingSections />
       </div>
     );
   }
