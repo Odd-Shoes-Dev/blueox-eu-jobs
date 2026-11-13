@@ -18,8 +18,8 @@ module.exports = {
 		extend: {
 			colors: {
 				coral: {
-					DEFAULT: '#FF4040',
-					dark: '#E63636',
+					DEFAULT: '#FF7900',
+					dark: '#E66D00',
 				},
 				navy: {
 					DEFAULT: '#0A1628',
@@ -31,7 +31,7 @@ module.exports = {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
-					DEFAULT: '#FF4040',
+					DEFAULT: '#FF7900',
 					foreground: 'hsl(var(--primary-foreground))',
 				},
 				secondary: {
@@ -39,7 +39,7 @@ module.exports = {
 					foreground: 'hsl(var(--secondary-foreground))',
 				},
 				accent: {
-					DEFAULT: '#FF4040',
+					DEFAULT: '#FF7900',
 					foreground: 'hsl(var(--accent-foreground))',
 				},
 				destructive: {
