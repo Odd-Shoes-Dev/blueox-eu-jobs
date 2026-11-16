@@ -11,7 +11,8 @@
     "@neondatabase/serverless": "^0.10.4",
     "bcryptjs": "^2.4.3",
     "imagekit": "^5.2.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "resend": "^4.8.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -24,9 +24,10 @@ needs to. An optional catch-all (`[[...id]].ts`) would solve this in Next.js, bu
 that convention isn't supported outside Next's own router, so it 404s on the bare
 path if you try it here. `api/auth/[action].ts` is a genuine exception — it's a
 single required segment (`signup`, `login`, etc.) that's never called bare, so the
-plain `[action].ts` convention works fine there. Currently 10 functions total. If
-you add a genuinely new resource, prefer extending an existing file's routing over
-adding a new top-level file, to keep headroom under 12.
+plain `[action].ts` convention works fine there. Currently 12 of 12 functions —
+the hard cap on the Hobby plan. Any new resource must extend an existing file's
+routing (see above); adding another top-level file requires upgrading the plan
+or consolidating an existing route first.
 
 ## Auth: currently custom email/password, Clerk kept dormant
 
@@ -48,6 +49,12 @@ active right now. Session tokens are self-issued JWTs (`lib/auth.ts`,
   place.
 - `ALLOWED_ORIGINS` — comma-separated list of frontend origins allowed to call this
   API (e.g. `https://blueoxjobs.eu,https://www.blueoxjobs.eu,https://admin.blueoxjobs.eu,http://localhost:3000,http://localhost:3001`)
+- `RESEND_API_KEY` — sends the homepage Job Offer Checker's result emails
+  (`lib/email.ts`, `api/checker-report.ts`): always an internal notification
+  to `hire@blueoxjobs.eu`, plus a copy to the visitor's own email if they gave
+  one. The "from" address (`noreply@blueoxjobs.eu`) must be on a domain
+  verified in Resend. Without this set, `lib/email.ts` falls back to logging
+  instead of sending.
 
 ## Authorization model (replaces Supabase RLS)
 
