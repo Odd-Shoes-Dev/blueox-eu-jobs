@@ -56,6 +56,8 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [sendState, setSendState] = useState<SendState>('idle');
+  const [reportEmail, setReportEmail] = useState('');
+  const [reportSendState, setReportSendState] = useState<SendState>('idle');
 
   const total = computeTotal(answers);
   const critical = isCritical(answers);
@@ -98,6 +100,8 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
     'Hello Blue Ox Jobs. I completed the Job Offer Checker and would like a full check of my offer.'
   )}`;
 
+  const flaggedPayload = () => flagged.map((f) => ({ text: f.text, answer: answers[f.id] ?? '' }));
+
   const handleSendResult = async () => {
     setSendState('sending');
     try {
@@ -106,7 +110,7 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
         total,
         maxScore: MAX_SCORE,
         route,
-        flagged: flagged.map((f) => ({ text: f.text, answer: answers[f.id] ?? '' })),
+        flagged: flaggedPayload(),
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
       });
@@ -114,6 +118,25 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
     } catch (err) {
       console.error('Failed to send checker report:', err);
       setSendState('error');
+    }
+  };
+
+  const handleSendReportEmail = async () => {
+    setReportSendState('sending');
+    try {
+      await sendCheckerReport({
+        risk,
+        total,
+        maxScore: MAX_SCORE,
+        route,
+        flagged: flaggedPayload(),
+        email: reportEmail.trim() || undefined,
+        sendCopy: true,
+      });
+      setReportSendState('sent');
+    } catch (err) {
+      console.error('Failed to email checker report:', err);
+      setReportSendState('error');
     }
   };
 
@@ -173,7 +196,7 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
         <strong className="text-[#0755c9]">Region support:</strong> {regionMessage}
       </div>
 
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-3">
         <button
           onClick={handleDownload}
           className="text-[#0755c9] font-space font-semibold text-sm border border-gray-200 rounded-xl px-6 py-3 hover:border-coral/50 transition-colors"
@@ -186,6 +209,32 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
         >
           Start again
         </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <input
+          type="email"
+          placeholder="Email address"
+          value={reportEmail}
+          onChange={(e) => setReportEmail(e.target.value)}
+          className="border border-gray-200 rounded-xl px-4 py-2.5 font-space text-sm focus:outline-none focus:border-coral flex-1 min-w-[200px]"
+        />
+        <button
+          onClick={handleSendReportEmail}
+          disabled={!reportEmail.trim() || reportSendState === 'sending'}
+          className="inline-flex items-center gap-2 text-[#0755c9] font-space font-semibold text-sm border border-gray-200 rounded-xl px-6 py-2.5 hover:border-coral/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {reportSendState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}
+          Email me this report
+        </button>
+        {reportSendState === 'sent' && (
+          <span className="text-sm text-green-600 font-space flex items-center gap-1">
+            <CheckCircle className="w-4 h-4" /> Sent
+          </span>
+        )}
+        {reportSendState === 'error' && (
+          <span className="text-sm text-red-600 font-space">Couldn't send — try again.</span>
+        )}
       </div>
 
       <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 mb-6">

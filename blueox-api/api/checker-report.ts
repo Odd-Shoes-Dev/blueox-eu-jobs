@@ -6,17 +6,20 @@ import { sendEmail } from '../lib/email';
 // same as the chatbot's applications POST. Uses the 12th/final Vercel Hobby-plan
 // function slot; any future backend route needs to extend an existing file instead.
 //
-// Sends two emails: an internal notification to hire@blueoxjobs.eu (so the team
-// has visibility into checker usage) and, if the visitor gave an email, a copy of
-// their own result to them. The internal notification's success is what the
-// response status reflects; the visitor copy is best-effort.
+// Always notifies hire@blueoxjobs.eu (so the team has visibility into checker
+// usage / callback requests). Only emails the visitor their own copy when
+// `sendCopy` is explicitly true — used by the "Email me this report" action,
+// not by "Request a callback" (that one is about the team reaching out, not
+// an automated email back to the visitor). The internal notification's
+// success is what the response status reflects; the visitor copy is
+// best-effort.
 //
 // POST /api/checker-report
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { risk, total, maxScore, route, flagged, email, phone } = req.body ?? {};
+  const { risk, total, maxScore, route, flagged, email, phone, sendCopy } = req.body ?? {};
 
   if (!risk || typeof total !== 'number') {
     return res.status(400).json({ error: 'Missing report data' });
@@ -64,7 +67,7 @@ This is a red-flag check, not a definitive finding that a person or company is f
   }
 
   let visitorEmailSent = false;
-  if (email) {
+  if (sendCopy && email) {
     try {
       await sendEmail(email, 'Your Job Offer Checker Result — Blue Ox Jobs', visitorBody);
       visitorEmailSent = true;
