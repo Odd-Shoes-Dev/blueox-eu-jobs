@@ -10,7 +10,11 @@ import JobOfferChecker from './checker/JobOfferChecker';
 import MarketingFooter from './MarketingFooter';
 import StickyMobileCta from './StickyMobileCta';
 
-const HomeMarketingSections: React.FC = () => {
+interface Props {
+  onStartChat: () => void;
+}
+
+const HomeMarketingSections: React.FC<Props> = ({ onStartChat }) => {
   return (
     <div className="font-inter">
       <TruthSection />
@@ -22,7 +26,7 @@ const HomeMarketingSections: React.FC = () => {
       <FinalCtaSection />
       <JobOfferChecker />
       <MarketingFooter />
-      <StickyMobileCta />
+      <StickyMobileCta onStartChat={onStartChat} />
     </div>
   );
 };

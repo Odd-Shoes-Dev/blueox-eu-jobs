@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Send, ArrowRight, Check, RotateCcw, ExternalLink, Upload, X, Menu, Briefcase } from 'lucide-react';
 import { UserPath, ConversationMessage, ChatChoice, CollectedData, Job } from './types';
 import { 
@@ -60,6 +60,19 @@ const ChatbotInterface: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHero, setShowHero] = useState(true);
 
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Starting the chat pushes a `?chat=1` history entry (instead of just
+  // flipping local state) so the browser's Back button returns here to the
+  // hero, rather than skipping straight past it to whatever page was open
+  // before the user landed on "/" — there was never a history entry for the
+  // hero itself to go back to.
+  const isChatParamActive = new URLSearchParams(location.search).get('chat') === '1';
+  useEffect(() => {
+    setShowHero(!isChatParamActive);
+  }, [isChatParamActive]);
+
   // Reset conversation
   const resetConversation = () => {
     setMessages([]);
@@ -75,12 +88,14 @@ const ChatbotInterface: React.FC = () => {
     setMatchedJobs([]);
     setSelectedJob(null);
     setShowJobSelection(false);
+    if (isChatParamActive) navigate({ search: '' });
     setShowHero(true);
     localStorage.removeItem('blueox_conversation_data');
   };
 
   // Start the chat from hero
   const startChat = () => {
+    navigate({ search: '?chat=1' });
     setShowHero(false);
     setTimeout(() => {
       addBotMessage(WELCOME_MESSAGE, INITIAL_CHOICES);
@@ -502,7 +517,6 @@ const ChatbotInterface: React.FC = () => {
                 <a href="#study" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Study in Europe</a>
                 <a href="#verify" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">How We Verify</a>
                 <a href="#contact" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Contact</a>
-                <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Contact us</a>
                 <Link to="/jobs" className="text-gray-300 hover:text-coral font-space text-sm transition-colors flex items-center">
                   <Briefcase className="w-4 h-4 mr-1" /> Jobs Open
                 </Link>
@@ -535,14 +549,6 @@ const ChatbotInterface: React.FC = () => {
                   </a>
                   <a href="#contact" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
                     Contact
-                  </a>
-                  <a
-                    href={WHATSAPP_LINK}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-300 hover:text-coral font-space text-sm"
-                  >
-                    Contact us
                   </a>
                   <Link
                     to="/jobs"
@@ -600,7 +606,7 @@ const ChatbotInterface: React.FC = () => {
           </button>
         </div>
 
-        <HomeMarketingSections />
+        <HomeMarketingSections onStartChat={startChat} />
       </div>
     );
   }
