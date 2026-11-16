@@ -1,11 +1,19 @@
 import React from 'react';
 import { PlayCircle } from 'lucide-react';
 
+// Video placeholder card is hidden for now — re-enable the right column below
+// once the actual scam-scripts video is ready.
+const SHOW_VIDEO_PLACEHOLDER = false;
+
 const TruthSection: React.FC = () => {
   return (
     <section className="py-16 sm:py-20 bg-white">
       <div className="container mx-auto px-4">
-        <div className="grid md:grid-cols-2 gap-10 md:gap-12 items-center max-w-6xl mx-auto">
+        <div
+          className={`grid gap-10 md:gap-12 items-center max-w-6xl mx-auto ${
+            SHOW_VIDEO_PLACEHOLDER ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-3xl text-center md:text-left'
+          }`}
+        >
           <div>
             <div className="font-space text-sm font-semibold text-coral uppercase tracking-wide mb-3">
               The truth nobody tells you
@@ -23,17 +31,19 @@ const TruthSection: React.FC = () => {
               India every day. Different countries. Same script.
             </p>
           </div>
-          <div className="bg-[#0755c9] rounded-2xl p-8 sm:p-10 text-white shadow-lg">
-            <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
-              <PlayCircle className="w-9 h-9 text-coral" />
+          {SHOW_VIDEO_PLACEHOLDER && (
+            <div className="bg-[#0755c9] rounded-2xl p-8 sm:p-10 text-white shadow-lg">
+              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
+                <PlayCircle className="w-9 h-9 text-coral" />
+              </div>
+              <h3 className="font-space font-bold text-xl mb-2">Don't be the next victim.</h3>
+              <p className="text-gray-300 text-sm">
+                Watch: 3 common job scam scripts
+                <br />
+                (and how to spot them)
+              </p>
             </div>
-            <h3 className="font-space font-bold text-xl mb-2">Don't be the next victim.</h3>
-            <p className="text-gray-300 text-sm">
-              Watch: 3 common job scam scripts
-              <br />
-              (and how to spot them)
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </section>

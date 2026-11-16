@@ -1,6 +1,7 @@
-import React from 'react';
-import { AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { WHATSAPP_LINK } from '../../chatbot/conversationFlow';
+import { sendCheckerReport } from '../../../services/checkerReportService';
 import { AnswersState, RouteState } from './types';
 import { computeTotal, isCritical, computeRiskTier, getFlaggedQuestions, RISK_MESSAGES, MAX_SCORE } from './questions';
 
@@ -49,7 +50,13 @@ ${regionMessage}
 This is a red-flag check, not a definitive finding.`;
 }
 
+type SendState = 'idle' | 'sending' | 'sent' | 'error';
+
 const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [sendState, setSendState] = useState<SendState>('idle');
+
   const total = computeTotal(answers);
   const critical = isCritical(answers);
   const risk = computeRiskTier(total, critical);
@@ -90,6 +97,25 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
   const whatsappHref = `${WHATSAPP_LINK}?text=${encodeURIComponent(
     'Hello Blue Ox Jobs. I completed the Job Offer Checker and would like a full check of my offer.'
   )}`;
+
+  const handleSendResult = async () => {
+    setSendState('sending');
+    try {
+      await sendCheckerReport({
+        risk,
+        total,
+        maxScore: MAX_SCORE,
+        route,
+        flagged: flagged.map((f) => ({ text: f.text, answer: answers[f.id] ?? '' })),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+      });
+      setSendState('sent');
+    } catch (err) {
+      console.error('Failed to send checker report:', err);
+      setSendState('error');
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col">
@@ -151,17 +177,39 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
         <strong className="font-space text-sm text-[#0755c9] block mb-2">
           Where should we send your result? (Optional)
         </strong>
-        <div className="grid sm:grid-cols-2 gap-2 mb-2">
+        <div className="grid sm:grid-cols-2 gap-2 mb-3">
           <input
             type="email"
             placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="border border-gray-200 rounded-xl px-4 py-2.5 font-space text-sm focus:outline-none focus:border-coral"
           />
           <input
             type="tel"
             placeholder="WhatsApp number"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             className="border border-gray-200 rounded-xl px-4 py-2.5 font-space text-sm focus:outline-none focus:border-coral"
           />
+        </div>
+        <div className="flex items-center gap-3 mb-2">
+          <button
+            onClick={handleSendResult}
+            disabled={(!email.trim() && !phone.trim()) || sendState === 'sending'}
+            className="inline-flex items-center gap-2 bg-[#0755c9] hover:bg-[#062d79] disabled:opacity-40 disabled:cursor-not-allowed text-white font-space font-semibold text-sm px-5 py-2.5 rounded-xl transition-all"
+          >
+            {sendState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}
+            Send me my result
+          </button>
+          {sendState === 'sent' && (
+            <span className="text-sm text-green-600 font-space flex items-center gap-1">
+              <CheckCircle className="w-4 h-4" /> Sent
+            </span>
+          )}
+          {sendState === 'error' && (
+            <span className="text-sm text-red-600 font-space">Couldn't send — try again.</span>
+          )}
         </div>
         <p className="text-xs text-gray-400">
           We use your answers to check your offer and improve our checks. We never share them with
