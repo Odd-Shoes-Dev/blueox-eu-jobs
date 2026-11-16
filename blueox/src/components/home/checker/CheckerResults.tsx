@@ -173,59 +173,7 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
         <strong className="text-[#0755c9]">Region support:</strong> {regionMessage}
       </div>
 
-      <div className="mb-6">
-        <strong className="font-space text-sm text-[#0755c9] block mb-2">
-          Where should we send your result? (Optional)
-        </strong>
-        <div className="grid sm:grid-cols-2 gap-2 mb-3">
-          <input
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 font-space text-sm focus:outline-none focus:border-coral"
-          />
-          <input
-            type="tel"
-            placeholder="WhatsApp number"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 font-space text-sm focus:outline-none focus:border-coral"
-          />
-        </div>
-        <div className="flex items-center gap-3 mb-2">
-          <button
-            onClick={handleSendResult}
-            disabled={(!email.trim() && !phone.trim()) || sendState === 'sending'}
-            className="inline-flex items-center gap-2 bg-[#0755c9] hover:bg-[#062d79] disabled:opacity-40 disabled:cursor-not-allowed text-white font-space font-semibold text-sm px-5 py-2.5 rounded-xl transition-all"
-          >
-            {sendState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}
-            Send me my result
-          </button>
-          {sendState === 'sent' && (
-            <span className="text-sm text-green-600 font-space flex items-center gap-1">
-              <CheckCircle className="w-4 h-4" /> Sent
-            </span>
-          )}
-          {sendState === 'error' && (
-            <span className="text-sm text-red-600 font-space">Couldn't send — try again.</span>
-          )}
-        </div>
-        <p className="text-xs text-gray-400">
-          We use your answers to check your offer and improve our checks. We never share them with
-          the sender. Privacy policy to be added before launch.
-        </p>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <a
-          href={whatsappHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-2 bg-coral hover:bg-coral-dark text-white font-space font-semibold px-6 py-3 rounded-xl transition-all shadow-lg"
-        >
-          Send Us the Offer for a Full Check <ArrowRight className="w-4 h-4" />
-        </a>
+      <div className="flex gap-3 mb-6">
         <button
           onClick={handleDownload}
           className="text-[#0755c9] font-space font-semibold text-sm border border-gray-200 rounded-xl px-6 py-3 hover:border-coral/50 transition-colors"
@@ -238,6 +186,72 @@ const CheckerResults: React.FC<Props> = ({ route, answers, onRestart }) => {
         >
           Start again
         </button>
+      </div>
+
+      <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 mb-6">
+        <h4 className="font-space font-bold text-base text-[#0755c9] mb-4">
+          Want our team to look at this with you?
+        </h4>
+        <div className="grid sm:grid-cols-2 gap-5">
+          <div>
+            <p className="text-sm font-space font-semibold text-gray-700 mb-2">
+              Leave your email or WhatsApp number and we'll reach out to you
+            </p>
+            <div className="flex flex-col gap-2 mb-3">
+              <input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="border border-gray-200 rounded-xl px-4 py-2.5 font-space text-sm focus:outline-none focus:border-coral"
+              />
+              <input
+                type="tel"
+                placeholder="WhatsApp number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="border border-gray-200 rounded-xl px-4 py-2.5 font-space text-sm focus:outline-none focus:border-coral"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSendResult}
+                disabled={(!email.trim() && !phone.trim()) || sendState === 'sending'}
+                className="inline-flex items-center gap-2 bg-[#0755c9] hover:bg-[#062d79] disabled:opacity-40 disabled:cursor-not-allowed text-white font-space font-semibold text-sm px-5 py-2.5 rounded-xl transition-all"
+              >
+                {sendState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}
+                Request a callback
+              </button>
+              {sendState === 'sent' && (
+                <span className="text-sm text-green-600 font-space flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4" /> Sent — we'll be in touch
+                </span>
+              )}
+              {sendState === 'error' && (
+                <span className="text-sm text-red-600 font-space">Couldn't send — try again.</span>
+              )}
+            </div>
+          </div>
+
+          <div className="sm:border-l sm:border-gray-200 sm:pl-5">
+            <p className="text-sm font-space font-semibold text-gray-700 mb-2">
+              Or message us right now on WhatsApp
+            </p>
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-coral hover:bg-coral-dark text-white font-space font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg w-full sm:w-auto"
+            >
+              Send Us the Offer for a Full Check <ArrowRight className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-400 mt-4">
+          We use your answers to check your offer and improve our checks. We never share them with
+          the sender. Privacy policy to be added before launch.
+        </p>
       </div>
 
       <p className="text-xs text-gray-400 mt-6">
