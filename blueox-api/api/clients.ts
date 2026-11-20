@@ -26,8 +26,11 @@ const REQUIRED_TO_SUBMIT = ['full_name', 'date_of_birth', 'nationality', 'email'
 //
 // `resource=partner-candidates` — the Partner Portal:
 //   GET/POST /api/clients?resource=partner-candidates (no id) — partner JWT.
-//     Lists/creates that partner's own candidates.
-//   GET/PATCH/DELETE ...&id=:id — partner JWT (must own it).
+//     Lists/creates that partner's own candidates. Admin: GET with
+//     &partner_id= lists that partner's candidates (read-only, no POST).
+//   GET/PATCH/DELETE ...&id=:id — partner JWT (must own it). Admin: GET only,
+//     any candidate, no ownership check — read-only visibility, no editing
+//     here yet.
 //   GET/PATCH ...&token=:accessToken — candidate self-service, no id needed
 //     (the token alone resolves to exactly one row).
 //   PATCH ...&action=submit — candidate-token only, draft -> submitted.
@@ -86,29 +89,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (resource !== 'partner-candidates') return res.status(404).json({ error: 'Unknown resource' });
 
-  // Resolve caller: a partner JWT, or a candidate access token — mutually
-  // exclusive in practice. Candidate-token requests never need ?id= at all;
-  // getCandidateByAccessToken already fetched the full row.
+  // Resolve caller: a partner JWT, a candidate access token, or an admin
+  // client — mutually exclusive in practice. Candidate-token requests never
+  // need ?id= at all; getCandidateByAccessToken already fetched the full row.
   const authedPartner = await getAuthedPartner(req);
   const tokenParam = (req.query.token as string | undefined) ?? (req.body as { token?: string } | undefined)?.token;
   const candidate = authedPartner ? null : await getCandidateByAccessToken(tokenParam);
+  const isAdmin = !authedPartner && !candidate
+    ? (await getAuthedClient(req))?.role === 'admin'
+    : false;
 
-  if (!authedPartner && !candidate) return res.status(401).json({ error: 'Unauthorized' });
+  if (!authedPartner && !candidate && !isAdmin) return res.status(401).json({ error: 'Unauthorized' });
 
-  if (authedPartner && !id) {
+  if ((authedPartner || isAdmin) && !id) {
     if (req.method === 'GET') {
+      const partnerId = authedPartner ? authedPartner.id : (req.query.partner_id as string | undefined);
+      if (!partnerId) return res.status(400).json({ error: 'partner_id is required' });
       const rows = await sql`
         SELECT id, partner_id, access_token, status, changes_requested_note,
                full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
                country_of_residence, eu_citizenship, target_country, job_category,
                driving_licence, driving_licence_conversion_status, video_url,
                placement_status, placed_job_id, placed_at, created_at, updated_at
-        FROM partner_candidates WHERE partner_id = ${authedPartner.id} ORDER BY created_at DESC
+        FROM partner_candidates WHERE partner_id = ${partnerId} ORDER BY created_at DESC
       `;
       return res.status(200).json(rows);
     }
 
     if (req.method === 'POST') {
+      if (!authedPartner) return res.status(403).json({ error: 'Forbidden' });
       const accessToken = generateToken();
       const rows = await sql`
         INSERT INTO partner_candidates (partner_id, access_token)
@@ -141,7 +150,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
     row = rows[0];
     if (!row) return res.status(404).json({ error: 'Not found' });
-    if (row.partner_id !== authedPartner!.id) return res.status(403).json({ error: 'Forbidden' });
+    if (!isAdmin && row.partner_id !== authedPartner!.id) return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  // Admin access is read-only for now — no editing/locking/deleting a
+  // candidate from here yet, just visibility into what a partner submitted.
+  if (isAdmin && req.method !== 'GET') {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const targetId = row.id as string;

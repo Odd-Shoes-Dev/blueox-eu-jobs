@@ -35,8 +35,13 @@ const Login: React.FC = () => {
   const location = useLocation();
 
   const explicitFrom = (location.state as { from?: { pathname?: string } })?.from?.pathname;
-  const from = explicitFrom || '/';
   const stateConversationData = (location.state as { conversationData?: ConversationData })?.conversationData;
+  // Where a signed-in account belongs when nothing more specific (a bounced-from
+  // protected route) says otherwise — used both for sign-in and for the
+  // already-signed-in redirect below, so a plain "Sign In" click lands you in
+  // your own portal instead of back on the landing page.
+  const destinationFor = (c: { role: string }) =>
+    c.role === 'admin' ? '/admin' : `/apply/${c.role === 'workforce' ? 'workforce' : 'student'}`;
   // Which portal link (Student/Workforce) actually sent us here, if any —
   // this is a clearer, fresher signal of intent than leftover chatbot data
   // cached in localStorage from a possibly much earlier, unrelated visit.
@@ -63,8 +68,7 @@ const Login: React.FC = () => {
   // belongs, not show the form again.
   useEffect(() => {
     if (authLoading || !client) return;
-    const destination = explicitFrom || (client.role === 'admin' ? '/admin' : `/apply/${client.role === 'workforce' ? 'workforce' : 'student'}`);
-    navigate(destination, { replace: true });
+    navigate(explicitFrom || destinationFor(client), { replace: true });
   }, [authLoading, client, explicitFrom, navigate]);
 
   useEffect(() => {
@@ -169,7 +173,7 @@ const Login: React.FC = () => {
               toastShown = true;
             }
           }
-          navigateAfterToast(from, toastShown);
+          navigateAfterToast(explicitFrom || destinationFor(client!), toastShown);
         }
       } else {
         if (!fullName.trim()) {
