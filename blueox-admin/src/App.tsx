@@ -496,8 +496,11 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="font-inter min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-navy text-white sticky top-0 z-20">
+      {/* Header + Tabs are one sticky unit, so the tabs bar always sits right
+          below the header's actual rendered height instead of a hardcoded
+          guess at it (which drifted out of sync and overlapped content). */}
+      <div className="sticky top-0 z-20">
+      <header className="bg-navy text-white">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center">
             <img src="/assets/logo.png" alt="The Blue OX - Admin Console" className="h-10 mr-4" />
@@ -539,7 +542,7 @@ const AdminDashboard: React.FC = () => {
       </header>
 
       {/* Tabs */}
-      <div className="bg-white border-b sticky top-[68px] z-10">
+      <div className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex space-x-6 overflow-x-auto">
             <button
@@ -576,6 +579,7 @@ const AdminDashboard: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Content */}

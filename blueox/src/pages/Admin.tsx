@@ -10,6 +10,7 @@ import * as paymentsService from '../services/paymentsService';
 import * as jobsService from '../services/jobsService';
 import * as storageService from '../services/storageService';
 import * as adminService from '../services/adminService';
+import { useHeaderHidden } from '../hooks/useHeaderHidden';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs';
 
@@ -21,6 +22,7 @@ interface ApplicationWithDetails extends Application {
 
 const Admin: React.FC = () => {
   const { client: currentClient, loading: authLoading, isAdmin } = useAuth();
+  const headerHidden = useHeaderHidden();
   const [activeTab, setActiveTab] = useState<Tab>('applications');
   const [clients, setClients] = useState<Client[]>([]);
   const [applications, setApplications] = useState<ApplicationWithDetails[]>([]);
@@ -267,7 +269,16 @@ const Admin: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border-b sticky top-20 z-10">
+      {/* The sticky offset itself tracks the header's visibility (not a
+          transform — a transform would also shift this element's normal,
+          not-yet-stuck position, leaving a gap right after the banner above).
+          `top` only ever matters once this is actually stuck, so switching it
+          between 0 and the header's height has no effect until then. */}
+      <div
+        className={`bg-white border-b sticky z-10 transition-[top] duration-300 ease-in-out ${
+          headerHidden ? 'top-0' : 'top-20'
+        }`}
+      >
         <div className="container mx-auto px-4">
           <div className="flex space-x-6 overflow-x-auto">
             {tabs.map(({ id, label, icon: Icon, count }) => (

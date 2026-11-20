@@ -3,8 +3,10 @@ import { MapPin, Briefcase, Building, ExternalLink, Search, Filter, DollarSign, 
 import type { Job } from '../services/types';
 import * as jobsService from '../services/jobsService';
 import { WHATSAPP_LINK } from '../components/chatbot/conversationFlow';
+import { useHeaderHidden } from '../hooks/useHeaderHidden';
 
 const Jobs: React.FC = () => {
+  const headerHidden = useHeaderHidden();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -114,8 +116,16 @@ const Jobs: React.FC = () => {
         </div>
       </section>
 
-      {/* Search and Filters */}
-      <section className="py-4 sm:py-8 bg-gray-50 sticky top-16 sm:top-20 z-10 border-b">
+      {/* The sticky offset itself tracks the header's visibility (not a
+          transform — a transform would also shift this element's normal,
+          not-yet-stuck position, leaving a gap above it). `top` only ever
+          matters once this is actually stuck, so switching it between 0 and
+          the header's height has no effect until then. */}
+      <section
+        className={`py-4 sm:py-8 bg-gray-50 sticky z-10 border-b transition-[top] duration-300 ease-in-out ${
+          headerHidden ? 'top-0' : 'top-16 sm:top-20'
+        }`}
+      >
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto">
             {/* Search Bar */}
