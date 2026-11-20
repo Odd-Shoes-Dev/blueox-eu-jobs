@@ -605,6 +605,8 @@
 # PostgreSQL
 **/*.backup
 **/*.sql
+# ...except our own hand-run schema migrations, which are source, not a dump.
+!neon-database/*.sql
 
 # MongoDB
 **/dump/
