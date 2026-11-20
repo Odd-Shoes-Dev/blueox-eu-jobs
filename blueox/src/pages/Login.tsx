@@ -44,7 +44,7 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'student' | 'workforce' | 'company'>(roleFromApplyLink || 'student');
+  const [role, setRole] = useState<'student' | 'workforce'>(roleFromApplyLink || 'student');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -89,13 +89,7 @@ const Login: React.FC = () => {
       // An explicit /apply/student or /apply/workforce link always wins over
       // cached chat data for the role — see roleFromApplyLink above.
       if (data.userPath && !roleFromApplyLink) {
-        if (data.userPath === 'company') {
-          setRole('company');
-        } else if ((data.userPath as string).includes('student')) {
-          setRole('student');
-        } else {
-          setRole('workforce');
-        }
+        setRole((data.userPath as string).includes('student') ? 'student' : 'workforce');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,8 +164,7 @@ const Login: React.FC = () => {
           return;
         }
 
-        const baseRole = role === 'company' ? 'workforce' : role;
-        const { client, error } = await signUp(email, password, fullName, baseRole, phone);
+        const { client, error } = await signUp(email, password, fullName, role, phone);
 
         if (error) {
           setError(error.message);
@@ -196,7 +189,7 @@ const Login: React.FC = () => {
           // No explicit "come back here after signing in" page (e.g. not bounced
           // from a protected route) -> send fresh signups to their Portal, not the
           // chatbot home page, since that's the only place with anything to do.
-          navigateAfterToast(explicitFrom || `/apply/${baseRole}`, true);
+          navigateAfterToast(explicitFrom || `/apply/${role}`, true);
         }
       }
     } catch (err) {
@@ -295,15 +288,12 @@ const Login: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">I am applying to</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setRole('student')} className={`py-3 rounded-lg font-medium transition text-sm ${role === 'student' ? 'bg-coral text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     Study
                   </button>
                   <button type="button" onClick={() => setRole('workforce')} className={`py-3 rounded-lg font-medium transition text-sm ${role === 'workforce' ? 'bg-coral text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     Work
-                  </button>
-                  <button type="button" onClick={() => setRole('company')} className={`py-3 rounded-lg font-medium transition text-sm ${role === 'company' ? 'bg-coral text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                    Hire
                   </button>
                 </div>
               </div>
@@ -377,6 +367,15 @@ const Login: React.FC = () => {
             Back to AI Consultant
           </Link>
         </div>
+
+        {!isLogin && (
+          <div className="mt-4 text-center text-sm text-gray-500">
+            Run a recruitment agency with workers to place?{' '}
+            <Link to="/partner-portal/signup" className="text-coral hover:underline font-medium">
+              Submit your candidates
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
