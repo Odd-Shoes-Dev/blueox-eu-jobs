@@ -11,8 +11,9 @@ import * as paymentPhasesService from './services/paymentPhasesService';
 import * as jobsService from './services/jobsService';
 import * as storageService from './services/storageService';
 import * as adminService from './services/adminService';
+import type { AdminPartner } from './services/adminService';
 
-type Tab = 'applications' | 'jobs';
+type Tab = 'applications' | 'jobs' | 'partners';
 
 // Clerk is intentionally NOT used right now — see blueox-api/AUTH.md. To
 // re-enable it, swap this component's body back to:
@@ -122,6 +123,7 @@ const AdminDashboard: React.FC = () => {
   const [payments, setPayments] = useState<(Payment & { client?: Client })[]>([]);
   const [paymentPhases, setPaymentPhases] = useState<(ClientPaymentPhases & { client?: Client })[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [partners, setPartners] = useState<AdminPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState<string | null>(null);
@@ -164,6 +166,7 @@ const AdminDashboard: React.FC = () => {
         payments: paymentsData,
         paymentPhases: paymentPhasesData,
         jobs: jobsData,
+        partners: partnersData,
       } = await adminService.getAdminDashboard();
 
       setClients(clientsData);
@@ -175,6 +178,7 @@ const AdminDashboard: React.FC = () => {
       setPayments(paymentsData.map(p => ({ ...p, client: clientMap[p.client_id] })));
       setPaymentPhases(paymentPhasesData.map(pp => ({ ...pp, client: clientMap[pp.client_id] })));
       setJobs(jobsData);
+      setPartners(partnersData);
 
       console.log('Data fetch completed:', {
         clients: clientsData.length,
@@ -182,7 +186,8 @@ const AdminDashboard: React.FC = () => {
         documents: docsData.length,
         payments: paymentsData.length,
         paymentPhases: paymentPhasesData.length,
-        jobs: jobsData.length
+        jobs: jobsData.length,
+        partners: partnersData.length
       });
 
     } catch (error) {
@@ -194,6 +199,7 @@ const AdminDashboard: React.FC = () => {
       setPayments([]);
       setPaymentPhases([]);
       setJobs([]);
+      setPartners([]);
     } finally {
       setLoading(false);
     }
@@ -228,6 +234,11 @@ const AdminDashboard: React.FC = () => {
     }
     setShowModal(null);
     setEditingItem(null);
+    fetchAllData();
+  };
+
+  const setPartnerStatus = async (id: string, registration_status: AdminPartner['registration_status']) => {
+    await adminService.setPartnerRegistrationStatus(id, registration_status);
     fetchAllData();
   };
 
@@ -552,6 +563,17 @@ const AdminDashboard: React.FC = () => {
               Jobs
               <span className="ml-2 bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{jobs.length}</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('partners')}
+              className={`flex items-center py-4 border-b-2 font-medium whitespace-nowrap transition ${
+                activeTab === 'partners' ? 'border-coral text-coral' : 'border-transparent text-gray-600 hover:text-coral'
+              }`}
+            >
+              <Users className="w-5 h-5 mr-2" />
+              Partners
+              <span className="ml-2 bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{partners.length}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -846,6 +868,57 @@ const AdminDashboard: React.FC = () => {
                   ))}
                 </div>
                 {jobs.length === 0 && <p className="text-center py-8 text-gray-500">No jobs posted yet.</p>}
+              </div>
+            )}
+
+            {activeTab === 'partners' && (
+              <div className="bg-white rounded-xl border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-500">
+                    <tr>
+                      <th className="px-5 py-3 font-medium">Company</th>
+                      <th className="px-5 py-3 font-medium">Contact</th>
+                      <th className="px-5 py-3 font-medium">Candidates</th>
+                      <th className="px-5 py-3 font-medium">Status</th>
+                      <th className="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partners.map((p) => (
+                      <tr key={p.id} className="border-t">
+                        <td className="px-5 py-3 text-navy font-medium">{p.company_name}</td>
+                        <td className="px-5 py-3 text-gray-600">
+                          {p.contact_person_name}
+                          <br />
+                          <span className="text-xs text-gray-400">{p.contact_email}</span>
+                        </td>
+                        <td className="px-5 py-3 text-gray-600">{p.candidate_count}</td>
+                        <td className="px-5 py-3">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                            p.registration_status === 'approved' ? 'bg-green-100 text-green-700'
+                              : p.registration_status === 'suspended' || p.registration_status === 'rejected' ? 'bg-red-100 text-red-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {p.registration_status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right space-x-2">
+                          {p.registration_status !== 'approved' && (
+                            <button onClick={() => setPartnerStatus(p.id, 'approved')} className="text-green-600 hover:text-green-800 text-sm">
+                              Approve
+                            </button>
+                          )}
+                          {p.registration_status !== 'suspended' && (
+                            <button onClick={() => setPartnerStatus(p.id, 'suspended')} className="text-red-600 hover:text-red-800 text-sm">
+                              Suspend
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {partners.length === 0 && <p className="text-center py-8 text-gray-500">No partners yet.</p>}
               </div>
             )}
           </>

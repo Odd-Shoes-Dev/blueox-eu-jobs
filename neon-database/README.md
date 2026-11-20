@@ -38,6 +38,9 @@ psql "$NEON_DATABASE_URL" -f 0008_create_job_applications.sql
 psql "$NEON_DATABASE_URL" -f 0009_alter_clients_auth_user_id_to_text.sql
 psql "$NEON_DATABASE_URL" -f 0010_add_imagekit_file_id_to_documents.sql
 psql "$NEON_DATABASE_URL" -f 0011_add_custom_auth_columns_to_clients.sql
+psql "$NEON_DATABASE_URL" -f 0012_create_partners.sql
+psql "$NEON_DATABASE_URL" -f 0013_create_partner_candidates.sql
+psql "$NEON_DATABASE_URL" -f 0014_alter_documents_for_partner_candidates.sql
 ```
 
 0009 and 0010 are Stage 2 deltas (Clerk auth + ImageKit storage) — run them even if
@@ -46,10 +49,20 @@ the custom email+password auth now in use instead of Clerk (see
 blueox-api/AUTH.md) — it adds a UNIQUE index on clients.email, so if that fails,
 check for duplicate emails in existing rows first (likely test data) before rerunning.
 
+0012-0014 add the Partner Portal: `partners` (company accounts), `partner_candidates`
+(candidates a partner submits, owned by the partner, self-serviced via a non-expiring
+`access_token` link — not an independent `clients` account), and a `documents`
+extension so partner-submitted candidate documents reuse the same table as
+client-portal uploads. 0014 adds a CHECK constraint requiring every `documents` row
+to have exactly one of `client_id`/`partner_candidate_id` set — safe immediately
+since every existing row already has `client_id` set.
+
 Order matters because of foreign keys: `clients` and `jobs` have none and go first;
 `applications` references `clients`; `documents`/`payments`/`client_payment_phases`
 reference `clients`/`applications`; `job_applications` references both `applications`
-and `jobs`.
+and `jobs`; `partner_candidates` references `partners` and `jobs`, and 0014's
+`documents.partner_candidate_id` references `partner_candidates` — so 0012/0013 must
+run before 0014.
 
 Every `CREATE TABLE` uses `IF NOT EXISTS`, so re-running a file is safe.
 

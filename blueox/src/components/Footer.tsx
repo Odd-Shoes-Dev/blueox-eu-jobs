@@ -24,6 +24,7 @@ const Footer: React.FC = () => {
               <li><Link to="/jobs" className="hover:text-coral transition">Jobs</Link></li>
               <li><Link to="/apply/student" className="hover:text-coral transition">Student Portal</Link></li>
               <li><Link to="/apply/workforce" className="hover:text-coral transition">Workforce Portal</Link></li>
+              <li><Link to="/partner-portal/signup" className="hover:text-coral transition">For Recruitment Agencies</Link></li>
             </ul>
           </div>
 

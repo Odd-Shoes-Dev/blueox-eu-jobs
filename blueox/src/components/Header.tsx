@@ -66,6 +66,13 @@ const Header: React.FC = () => {
               Contact
             </Link>
 
+            <Link
+              to="/partner-portal/signup"
+              className="font-space font-medium text-sm text-gray-500 hover:text-coral transition"
+            >
+              For Recruitment Agencies
+            </Link>
+
             {user ? (
               <div className="flex items-center space-x-4">
                 {isAdmin && (
@@ -104,6 +111,7 @@ const Header: React.FC = () => {
               <Link to="/apply/student" className="font-space text-navy hover:text-coral">Student Portal</Link>
               <Link to="/apply/workforce" className="font-space text-navy hover:text-coral">Workforce Portal</Link>
               <Link to="/contact" className="font-space text-navy hover:text-coral">Contact</Link>
+              <Link to="/partner-portal/signup" className="font-space text-sm text-gray-500 hover:text-coral">For Recruitment Agencies</Link>
               {user ? (
                 <>
                   {isAdmin && <Link to="/admin" className="font-space text-coral">Admin</Link>}

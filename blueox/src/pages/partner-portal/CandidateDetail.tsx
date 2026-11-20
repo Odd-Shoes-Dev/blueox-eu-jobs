@@ -1,0 +1,267 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { Copy, Check, Upload, Trash2, Download, Lock, ExternalLink } from 'lucide-react';
+import * as partnerCandidatesService from '../../services/partnerCandidatesService';
+import type { PartnerCandidate, PartnerCandidateDocument } from '../../services/partnerCandidatesService';
+import * as storageService from '../../services/storageService';
+
+const DOC_TYPES = ['passport', 'cv', 'education_certificate', 'work_reference', 'medical_certificate', 'police_clearance'];
+const DOC_LABELS: Record<string, string> = {
+  passport: 'Passport',
+  cv: 'CV / Resume',
+  education_certificate: 'Education Certificate',
+  work_reference: 'Work Reference',
+  medical_certificate: 'Medical Certificate',
+  police_clearance: 'Police Clearance',
+};
+
+const FIELDS: { key: keyof PartnerCandidate; label: string; type?: string }[] = [
+  { key: 'full_name', label: 'Full name' },
+  { key: 'date_of_birth', label: 'Date of birth', type: 'date' },
+  { key: 'nationality', label: 'Nationality' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'email', label: 'Email', type: 'email' },
+  { key: 'country_of_residence', label: 'Country of residence' },
+  { key: 'target_country', label: 'Target country' },
+  { key: 'job_category', label: 'Job category' },
+  { key: 'driving_licence_conversion_status', label: 'Driving licence conversion status' },
+  { key: 'video_url', label: 'Skills video link' },
+];
+
+const CandidateDetail: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const [candidate, setCandidate] = useState<PartnerCandidate | null>(null);
+  const [documents, setDocuments] = useState<PartnerCandidateDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+
+  const fetchAll = async () => {
+    if (!id) return;
+    setLoading(true);
+    const [c, docs] = await Promise.all([
+      partnerCandidatesService.getCandidate(id),
+      partnerCandidatesService.listPartnerDocuments(),
+    ]);
+    setCandidate(c);
+    setDocuments(docs.filter((d) => d.partner_candidate_id === id));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const handleFieldChange = (key: keyof PartnerCandidate, value: string) => {
+    if (!candidate) return;
+    setCandidate({ ...candidate, [key]: value });
+  };
+
+  const handleSave = async () => {
+    if (!candidate || !id) return;
+    setSaving(true);
+    const updated = await partnerCandidatesService.updateCandidate(id, {
+      full_name: candidate.full_name ?? undefined,
+      date_of_birth: candidate.date_of_birth ?? undefined,
+      nationality: candidate.nationality ?? undefined,
+      phone: candidate.phone ?? undefined,
+      email: candidate.email ?? undefined,
+      country_of_residence: candidate.country_of_residence ?? undefined,
+      target_country: candidate.target_country ?? undefined,
+      job_category: candidate.job_category ?? undefined,
+      driving_licence_conversion_status: candidate.driving_licence_conversion_status ?? undefined,
+      video_url: candidate.video_url ?? undefined,
+    });
+    setCandidate(updated);
+    setSaving(false);
+  };
+
+  const handleLock = async () => {
+    if (!id) return;
+    setCandidate(await partnerCandidatesService.lockCandidate(id));
+  };
+
+  const handleRequestChanges = async () => {
+    if (!id || !note.trim()) return;
+    setCandidate(await partnerCandidatesService.requestChanges(id, note.trim()));
+    setNote('');
+  };
+
+  const handleUpload = async (docType: string, file: File) => {
+    if (!id) return;
+    setUploadingType(docType);
+    const path = `${id}/${docType}.${file.name.split('.').pop()}`;
+    const { error, path: storedPath } = await storageService.uploadDocument('partner-candidate', path, file);
+    if (!error && storedPath) {
+      await partnerCandidatesService.insertPartnerDocument({
+        partner_candidate_id: id,
+        file_name: file.name,
+        file_path: storedPath,
+        document_type: docType,
+        file_size: file.size,
+        mime_type: file.type,
+      });
+      await fetchAll();
+    }
+    setUploadingType(null);
+  };
+
+  const handleDeleteDocument = async (docId: string) => {
+    await partnerCandidatesService.deletePartnerDocument(docId);
+    await fetchAll();
+  };
+
+  const handleDownload = async (path: string) => {
+    const url = await storageService.getDocumentUrl(path);
+    if (url) window.open(url, '_blank');
+  };
+
+  const handleCopyLink = async () => {
+    if (!candidate) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/partner-portal/candidate/${candidate.access_token}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (loading || !candidate) {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="animate-spin w-8 h-8 border-4 border-coral border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <Link to="/partner-portal" className="text-sm text-gray-500 hover:text-coral">← Back to candidates</Link>
+          <h1 className="font-orbitron text-2xl font-bold text-navy mt-1">{candidate.full_name || 'New candidate'}</h1>
+        </div>
+        <button
+          onClick={handleCopyLink}
+          className="inline-flex items-center gap-2 text-sm font-space font-semibold text-coral border border-coral/30 rounded-lg px-4 py-2 hover:bg-coral/10"
+        >
+          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          {copied ? 'Copied' : 'Copy candidate link'}
+        </button>
+      </div>
+
+      {candidate.status === 'changes_requested' && candidate.changes_requested_note && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-sm text-amber-800">
+          <strong>Changes requested:</strong> {candidate.changes_requested_note}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
+        <h2 className="font-space font-bold text-navy mb-4">Candidate details</h2>
+        <div className="grid md:grid-cols-2 gap-4">
+          {FIELDS.map((f) => (
+            <div key={f.key}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+              <input
+                type={f.type ?? 'text'}
+                value={f.type === 'date' ? ((candidate[f.key] as string) ?? '').slice(0, 10) : (candidate[f.key] as string) ?? ''}
+                onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+              />
+            </div>
+          ))}
+        </div>
+        {candidate.video_url && (
+          <a href={candidate.video_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-coral text-sm mt-2 hover:underline">
+            Open video link <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-4 bg-coral text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:bg-coral-dark transition disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
+        <h2 className="font-space font-bold text-navy mb-4">Documents</h2>
+        <div className="grid sm:grid-cols-2 gap-3 mb-4">
+          {DOC_TYPES.map((docType) => {
+            const existing = documents.find((d) => d.document_type === docType);
+            return (
+              <div key={docType} className="border border-dashed border-gray-300 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">{DOC_LABELS[docType]}</span>
+                  {uploadingType === docType && (
+                    <div className="w-4 h-4 border-2 border-coral border-t-transparent rounded-full animate-spin" />
+                  )}
+                </div>
+                {existing ? (
+                  <div className="flex items-center justify-between mt-2 text-sm">
+                    <span className="text-gray-600 truncate">{existing.file_name}</span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => handleDownload(existing.file_path)} className="text-coral hover:text-coral-dark">
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteDocument(existing.id)} className="text-gray-400 hover:text-red-500">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="mt-2 flex items-center gap-2 text-sm text-gray-500 cursor-pointer hover:text-coral">
+                    <Upload className="w-4 h-4" /> Upload
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUpload(docType, file);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-100 p-6">
+        <h2 className="font-space font-bold text-navy mb-4">Status: {candidate.status}</h2>
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          {candidate.status === 'submitted' && (
+            <button
+              onClick={handleLock}
+              className="inline-flex items-center justify-center gap-2 bg-navy text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:opacity-90 transition"
+            >
+              <Lock className="w-4 h-4" /> Lock / Start Review
+            </button>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Request changes from the candidate</label>
+          <div className="flex gap-2">
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="What needs fixing?"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-coral focus:border-transparent"
+            />
+            <button
+              onClick={handleRequestChanges}
+              disabled={!note.trim()}
+              className="bg-gray-100 text-navy px-4 py-2 rounded-lg font-space font-semibold text-sm hover:bg-gray-200 disabled:opacity-50"
+            >
+              Request Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CandidateDetail;
