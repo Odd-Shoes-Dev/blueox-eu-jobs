@@ -17,14 +17,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authed = await getAuthedClient(req);
   if (!authed || authed.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
 
-  const [clients, applications, documents, payments, paymentPhases, jobs] = await Promise.all([
+  const [clients, applications, documents, payments, paymentPhases, jobs, partners] = await Promise.all([
     sql`SELECT * FROM clients ORDER BY created_at DESC`,
     sql`SELECT * FROM applications ORDER BY created_at DESC`,
     sql`SELECT * FROM documents ORDER BY created_at DESC`,
     sql`SELECT * FROM payments ORDER BY created_at DESC`,
     sql`SELECT * FROM client_payment_phases ORDER BY created_at DESC`,
     sql`SELECT * FROM jobs ORDER BY created_at DESC`,
+    // Read-only partner visibility for blueox-admin — no candidate editing here,
+    // just the list plus the registration_status approve/suspend toggle (done via
+    // PATCH /api/partner-candidates?resource=partner&id=, not this endpoint).
+    sql`SELECT id, company_name, contact_person_name, contact_email, contact_phone,
+               registration_status, created_at,
+               (SELECT count(*) FROM partner_candidates pc WHERE pc.partner_id = partners.id) AS candidate_count
+        FROM partners ORDER BY created_at DESC`,
   ]);
 
-  res.status(200).json({ clients, applications, documents, payments, paymentPhases, jobs });
+  res.status(200).json({ clients, applications, documents, payments, paymentPhases, jobs, partners });
 }

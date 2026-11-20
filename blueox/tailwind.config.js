@@ -27,10 +27,12 @@ module.exports = {
           dark: '#E66D00',
           light: '#FF9640',
         },
+        // Matches the landing page hero's gradient (`#062d79` -> `#075bc4`),
+        // so every other dark-blue section/heading uses the same blue.
         navy: {
-          DEFAULT: '#1A365D',
-          dark: '#0F2240',
-          light: '#2A4A7A',
+          DEFAULT: '#062d79',
+          dark: '#04225b',
+          light: '#075bc4',
         },
         primary: {
           DEFAULT: '#FF7900',

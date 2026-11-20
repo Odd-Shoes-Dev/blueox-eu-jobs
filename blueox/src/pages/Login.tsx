@@ -20,21 +20,16 @@ interface ConversationData {
   phone?: string;
   nationality?: string;
   targetCountries?: string[] | string;
+  savedAt?: string;
   [key: string]: unknown;
 }
 
+// An abandoned chat (closed the tab mid-conversation, never finished signup)
+// leaves this cached in localStorage indefinitely — only honor it long enough
+// to resume shortly after, not forever on every unrelated later visit.
+const CONVERSATION_DATA_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
 const Login: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'student' | 'workforce' | 'company'>('student');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<Toast | null>(null);
-  const [conversationData, setConversationData] = useState<ConversationData | null>(null);
   const { signIn, signUp, client, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,6 +37,26 @@ const Login: React.FC = () => {
   const explicitFrom = (location.state as { from?: { pathname?: string } })?.from?.pathname;
   const from = explicitFrom || '/';
   const stateConversationData = (location.state as { conversationData?: ConversationData })?.conversationData;
+  // Which portal link (Student/Workforce) actually sent us here, if any —
+  // this is a clearer, fresher signal of intent than leftover chatbot data
+  // cached in localStorage from a possibly much earlier, unrelated visit.
+  const roleFromApplyLink = explicitFrom === '/apply/workforce' ? 'workforce'
+    : explicitFrom === '/apply/student' ? 'student'
+    : null;
+
+  // Arriving via an explicit Apply link means no account yet — default to
+  // Sign Up. Otherwise Sign In (e.g. the header's plain "Sign In" link).
+  const [isLogin, setIsLogin] = useState(!roleFromApplyLink);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<'student' | 'workforce'>(roleFromApplyLink || 'student');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [conversationData, setConversationData] = useState<ConversationData | null>(null);
 
   // Visiting /login while already signed in (e.g. clicking "Sign in" again, or
   // landing here from a stale link) should bounce straight to where that account
@@ -61,7 +76,13 @@ const Login: React.FC = () => {
       const stored = localStorage.getItem('blueox_conversation_data');
       if (stored) {
         try {
-          data = JSON.parse(stored);
+          const parsed = JSON.parse(stored) as ConversationData;
+          const savedAt = parsed.savedAt ? new Date(parsed.savedAt).getTime() : NaN;
+          if (!isNaN(savedAt) && Date.now() - savedAt < CONVERSATION_DATA_MAX_AGE_MS) {
+            data = parsed;
+          } else {
+            localStorage.removeItem('blueox_conversation_data');
+          }
         } catch {
           console.error('Failed to parse stored conversation data');
         }
@@ -79,16 +100,13 @@ const Login: React.FC = () => {
       if (data.contactEmail) setEmail(data.contactEmail as string);
       if (data.contactPhone) setPhone(data.contactPhone as string);
 
-      if (data.userPath) {
-        if (data.userPath === 'company') {
-          setRole('company');
-        } else if ((data.userPath as string).includes('student')) {
-          setRole('student');
-        } else {
-          setRole('workforce');
-        }
+      // An explicit /apply/student or /apply/workforce link always wins over
+      // cached chat data for the role — see roleFromApplyLink above.
+      if (data.userPath && !roleFromApplyLink) {
+        setRole((data.userPath as string).includes('student') ? 'student' : 'workforce');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateConversationData]);
 
   useEffect(() => {
@@ -160,8 +178,7 @@ const Login: React.FC = () => {
           return;
         }
 
-        const baseRole = role === 'company' ? 'workforce' : role;
-        const { client, error } = await signUp(email, password, fullName, baseRole, phone);
+        const { client, error } = await signUp(email, password, fullName, role, phone);
 
         if (error) {
           setError(error.message);
@@ -186,7 +203,7 @@ const Login: React.FC = () => {
           // No explicit "come back here after signing in" page (e.g. not bounced
           // from a protected route) -> send fresh signups to their Portal, not the
           // chatbot home page, since that's the only place with anything to do.
-          navigateAfterToast(explicitFrom || `/apply/${baseRole}`, true);
+          navigateAfterToast(explicitFrom || `/apply/${role}`, true);
         }
       }
     } catch (err) {
@@ -285,15 +302,12 @@ const Login: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">I am applying to</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setRole('student')} className={`py-3 rounded-lg font-medium transition text-sm ${role === 'student' ? 'bg-coral text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     Study
                   </button>
                   <button type="button" onClick={() => setRole('workforce')} className={`py-3 rounded-lg font-medium transition text-sm ${role === 'workforce' ? 'bg-coral text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     Work
-                  </button>
-                  <button type="button" onClick={() => setRole('company')} className={`py-3 rounded-lg font-medium transition text-sm ${role === 'company' ? 'bg-coral text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                    Hire
                   </button>
                 </div>
               </div>
@@ -367,6 +381,15 @@ const Login: React.FC = () => {
             Back to AI Consultant
           </Link>
         </div>
+
+        {!isLogin && (
+          <div className="mt-4 text-center text-sm text-gray-500">
+            Run a recruitment agency with workers to place?{' '}
+            <Link to="/partner-portal/signup" className="text-coral hover:underline font-medium">
+              Submit your candidates
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Send, ArrowRight, Check, RotateCcw, ExternalLink, Upload, X, Menu, Briefcase } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Send, ArrowRight, Check, RotateCcw, ExternalLink, Upload } from 'lucide-react';
 import { UserPath, ConversationMessage, ChatChoice, CollectedData, Job } from './types';
 import { 
   WELCOME_MESSAGE, 
@@ -56,7 +56,6 @@ const ChatbotInterface: React.FC = () => {
   const [matchedJobs, setMatchedJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showJobSelection, setShowJobSelection] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHero, setShowHero] = useState(true);
 
@@ -493,84 +492,9 @@ const ChatbotInterface: React.FC = () => {
   // Hero Section Component
   if (showHero) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#062d79] to-[#075bc4] flex flex-col scroll-smooth">
-        {/* Fixed Header */}
-        <header className="fixed top-0 left-0 right-0 z-50 bg-[#062d79]/95 backdrop-blur-sm border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center justify-between h-16">
-              {/* Logo and Guarantee */}
-              <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                <img src="/logo1.png" alt="Blue OX" className="h-8 flex-shrink-0" />
-                {/* Short version for mobile */}
-                <span className="sm:hidden text-xs font-medium text-white/80">
-                  Guaranteed Job in Europe
-                </span>
-                {/* Full version for larger screens */}
-                <span className="hidden sm:block text-xs font-medium text-white/80 leading-tight max-w-[200px]">
-                  Guaranteed Job in Europe in 90 Days Or We Work for Free
-                </span>
-              </div>
-
-              {/* Desktop Navigation */}
-              <nav className="hidden md:flex items-center space-x-6 flex-shrink-0">
-                <a href="#work" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Work in Europe</a>
-                <a href="#study" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Study in Europe</a>
-                <a href="#verify" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">How We Verify</a>
-                <a href="#contact" className="text-gray-300 hover:text-coral font-space text-sm transition-colors">Contact</a>
-                <Link to="/jobs" className="text-gray-300 hover:text-coral font-space text-sm transition-colors flex items-center">
-                  <Briefcase className="w-4 h-4 mr-1" /> Jobs Open
-                </Link>
-                <a href="#checker" className="bg-coral hover:bg-coral-dark text-white font-space text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                  Check My Offer
-                </a>
-              </nav>
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden text-white p-2 ml-2 flex-shrink-0"
-              >
-                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
-            </div>
-
-            {/* Mobile Navigation Dropdown */}
-            {mobileMenuOpen && (
-              <div className="md:hidden py-4 border-t border-white/10">
-                <div className="flex flex-col space-y-3">
-                  <a href="#work" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
-                    Work in Europe
-                  </a>
-                  <a href="#study" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
-                    Study in Europe
-                  </a>
-                  <a href="#verify" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
-                    How We Verify
-                  </a>
-                  <a href="#contact" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 hover:text-coral font-space text-sm">
-                    Contact
-                  </a>
-                  <Link
-                    to="/jobs"
-                    className="text-gray-300 hover:text-coral font-space text-sm flex items-center"
-                  >
-                    <Briefcase className="w-4 h-4 mr-1" /> Jobs Open
-                  </Link>
-                  <a
-                    href="#checker"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="bg-coral hover:bg-coral-dark text-white font-space text-sm font-semibold px-4 py-2 rounded-lg text-center"
-                  >
-                    Check My Offer
-                  </a>
-                </div>
-              </div>
-            )}
-          </div>
-        </header>
-
+      <div className="min-h-screen bg-gradient-to-br from-[#062d79] to-[#075bc4] flex flex-col scroll-smooth pt-16 sm:pt-20">
         {/* Hero Content */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4 pt-20 pb-16">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 pt-10 sm:pt-12 pb-16">
           {/* Hero Text with Typing Animation */}
           <h1 className="font-orbitron text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-center mb-2">
             <span className="text-white">{typingText.slice(0, 4)}</span>
@@ -612,116 +536,15 @@ const ChatbotInterface: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-navy via-navy-dark to-navy flex flex-col">
-      {/* Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-navy-dark/95 backdrop-blur-sm border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo with Guarantee */}
-            <Link to="/" className="flex items-center space-x-2 sm:space-x-3">
-              <img
-                src="/logo1.png"
-                alt="Blue OX"
-                className="h-8 sm:h-10 w-auto"
-              />
-              {/* Short version for mobile */}
-              <span className="sm:hidden text-xs font-medium text-white/80">
-                Guaranteed Job in Europe
-              </span>
-              {/* Full version for larger screens */}
-              <span className="hidden sm:block text-xs font-medium text-white/80 max-w-[180px] leading-tight">
-                Guaranteed Job in Europe in 90 Days Or We Work for Free
-              </span>
-            </Link>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-6">
-              <a
-                href={WHATSAPP_LINK}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-300 hover:text-coral font-space text-sm transition-colors"
-              >
-                Talk to Previous Clients
-              </a>
-              <a
-                href={WHATSAPP_LINK}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-300 hover:text-coral font-space text-sm transition-colors"
-              >
-                Contact us
-              </a>
-              <Link 
-                to="/jobs"
-                className="text-gray-300 hover:text-coral font-space text-sm transition-colors flex items-center"
-              >
-                <Briefcase className="w-4 h-4 mr-1" />
-                Jobs Open
-              </Link>
-              <Link
-                to="/login"
-                className="bg-coral hover:bg-coral-dark text-white font-space text-sm px-4 py-2 rounded-lg transition-colors"
-              >
-                Sign in
-              </Link>
-            </nav>
-
-            {/* Mobile menu button */}
-            <button 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden text-white p-2"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-          </div>
-
-          {/* Mobile Navigation */}
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-white/10">
-              <div className="flex flex-col space-y-3">
-                <a 
-                  href={WHATSAPP_LINK} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-gray-300 hover:text-coral font-space text-sm"
-                >
-                  Talk to Previous Clients
-                </a>
-                <a 
-                  href={WHATSAPP_LINK} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-gray-300 hover:text-coral font-space text-sm"
-                >
-                  Contact us
-                </a>
-                <Link 
-                  to="/jobs"
-                  className="text-gray-300 hover:text-coral font-space text-sm"
-                >
-                  Jobs Open
-                </Link>
-                <Link
-                  to="/login"
-                  className="text-coral font-space text-sm"
-                >
-                  Sign in
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Progress Bar - Fixed below header */}
+    <div className="min-h-screen bg-gradient-to-br from-navy via-navy-dark to-navy flex flex-col pt-16 sm:pt-20">
+      {/* Progress Bar */}
       {userPath && !isComplete && (
-        <div className="fixed top-16 left-0 right-0 z-40 bg-navy-dark/90 backdrop-blur-sm px-4 py-3 border-b border-white/10">
+        <div className="bg-navy-dark/90 backdrop-blur-sm px-4 py-3 border-b border-white/10">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center space-x-3">
               <span className="text-xs text-gray-400 font-space whitespace-nowrap">Progress</span>
               <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-coral transition-all duration-500 rounded-full"
                   style={{ width: `${Math.min(progress, 100)}%` }}
                 />
@@ -733,7 +556,7 @@ const ChatbotInterface: React.FC = () => {
       )}
 
       {/* Chat Area */}
-      <div id="chat-area" className={`flex-1 overflow-y-auto px-4 py-6 ${userPath && !isComplete ? 'pt-32' : 'pt-24'}`}>
+      <div id="chat-area" className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto">
 
           {/* Messages */}

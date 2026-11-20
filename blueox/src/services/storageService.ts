@@ -3,11 +3,14 @@ import { apiFetch } from './apiClient';
 
 // 'client' -> applicant-facing document safe (Portal upload, backed by a documents
 // table row). 'admin' -> application attachments tracked only as a path inside
-// applications.data JSON (chatbot uploads, pre-login). Both now live in ImageKit as
-// private files under a kind-prefixed folder; kept as a parameter for API
-// compatibility with Stage 1's call sites even though most of the backend endpoints
-// don't need to distinguish them anymore.
-export type StorageKind = 'client' | 'admin';
+// applications.data JSON (chatbot uploads, pre-login). 'partner-candidate' ->
+// a partner-submitted candidate's documents (passport, CV, etc.), backed by a
+// documents row the same way 'client' is, just owned by partner_candidate_id
+// instead of client_id. All three now live in ImageKit as private files under a
+// kind-prefixed folder; kept as a parameter for API compatibility with Stage 1's
+// call sites even though most of the backend endpoints don't need to distinguish
+// them anymore.
+export type StorageKind = 'client' | 'admin' | 'partner-candidate';
 
 interface ImageKitAuthParams {
   token: string;
@@ -92,18 +95,22 @@ export async function uploadDocument(
 // Returns the short-lived signed URL itself (no blob fetch) — for opening a file in
 // a new tab so the browser renders it inline (PDFs/images) instead of forcing a
 // download. Word docs still download, since no browser previews those natively.
-export async function getDocumentUrl(path: string): Promise<string | null> {
+// `token` is only needed for an unauthenticated candidate-self-service caller
+// (apiFetch has no session to attach otherwise) — partner/client callers omit it.
+export async function getDocumentUrl(path: string, token?: string): Promise<string | null> {
   try {
-    const { url } = await apiFetch<{ url: string }>(`/api/files?path=${encodeURIComponent(path)}`);
+    const qs = token ? `&token=${encodeURIComponent(token)}` : '';
+    const { url } = await apiFetch<{ url: string }>(`/api/files?path=${encodeURIComponent(path)}${qs}`);
     return url;
   } catch {
     return null;
   }
 }
 
-export async function downloadDocument(_kind: StorageKind, path: string): Promise<Blob | null> {
+export async function downloadDocument(_kind: StorageKind, path: string, token?: string): Promise<Blob | null> {
   try {
-    const { url } = await apiFetch<{ url: string }>(`/api/files?path=${encodeURIComponent(path)}`);
+    const qs = token ? `&token=${encodeURIComponent(token)}` : '';
+    const { url } = await apiFetch<{ url: string }>(`/api/files?path=${encodeURIComponent(path)}${qs}`);
     const res = await fetch(url);
     if (!res.ok) return null;
     return res.blob();
@@ -112,11 +119,13 @@ export async function downloadDocument(_kind: StorageKind, path: string): Promis
   }
 }
 
-// For 'client' kind, deleting the documents table row (documentsService.deleteDocumentRecord)
-// already deletes the underlying ImageKit file server-side, so this is a no-op —
-// kept for API compatibility with Stage 1's call sites.
+// For 'client'/'partner-candidate' kinds, deleting the documents table row
+// (documentsService.deleteDocumentRecord) already deletes the underlying
+// ImageKit file server-side, so this is a no-op — kept for API compatibility
+// with Stage 1's call sites. Only 'admin' (path-only-tracked application
+// attachments, no documents row) needs this separate delete-by-path call.
 export async function deleteDocument(kind: StorageKind, path: string): Promise<{ error: Error | null }> {
-  if (kind === 'client') return { error: null };
+  if (kind !== 'admin') return { error: null };
   try {
     await apiFetch('/api/files', { method: 'POST', body: JSON.stringify({ path }) });
     return { error: null };
