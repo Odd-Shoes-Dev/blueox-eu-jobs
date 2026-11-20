@@ -68,13 +68,17 @@ const SiteHeader: React.FC<SiteHeaderProps> = ({ homeTo, brand, desktopNav, mobi
           </button>
         </div>
 
-        {isMenuOpen && (
-          <div className="md:hidden mt-4 pb-4 border-t pt-4">
-            <div className="flex flex-col space-y-4" onClick={() => setIsMenuOpen(false)}>
+        <div
+          className={`md:hidden grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+            isMenuOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="flex flex-col space-y-4 border-t mt-4 pt-4 pb-4" onClick={() => setIsMenuOpen(false)}>
               {mobileNav}
             </div>
           </div>
-        )}
+        </div>
       </nav>
     </header>
   );
