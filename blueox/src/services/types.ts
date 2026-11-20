@@ -45,7 +45,10 @@ export interface Application {
 
 export interface Document {
   id: string;
-  client_id: string;
+  // Exactly one of client_id/partner_candidate_id is ever set — see the
+  // documents_owner_xor_chk constraint in the Partner Portal migration.
+  client_id: string | null;
+  partner_candidate_id?: string | null;
   application_id?: string;
   document_type: string;
   file_name: string;

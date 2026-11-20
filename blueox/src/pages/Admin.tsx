@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, MessageSquare, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, MessageSquare, Eye, ChevronDown, ChevronUp, Building2, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileKind } from '../lib/fileKind';
 import type { Client, Application, Document as DocType, Payment, Job } from '../services/types';
@@ -10,9 +10,11 @@ import * as paymentsService from '../services/paymentsService';
 import * as jobsService from '../services/jobsService';
 import * as storageService from '../services/storageService';
 import * as adminService from '../services/adminService';
+import type { AdminPartner } from '../services/adminService';
+import type { PartnerCandidate } from '../services/partnerCandidatesService';
 import { useHeaderHidden } from '../hooks/useHeaderHidden';
 
-type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs';
+type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs' | 'partners';
 
 interface ApplicationWithDetails extends Application {
   client?: Client;
@@ -29,6 +31,13 @@ const Admin: React.FC = () => {
   const [documents, setDocuments] = useState<(DocType & { client?: Client })[]>([]);
   const [payments, setPayments] = useState<(Payment & { client?: Client })[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [partners, setPartners] = useState<AdminPartner[]>([]);
+  const [expandedPartner, setExpandedPartner] = useState<string | null>(null);
+  // Loaded on demand per partner (not part of the initial dashboard fetch) —
+  // read-only, so the admin can see what a partner submitted; see
+  // clients.ts's partner-candidates admin branch.
+  const [partnerCandidates, setPartnerCandidates] = useState<Record<string, PartnerCandidate[]>>({});
+  const [loadingPartnerCandidates, setLoadingPartnerCandidates] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState<string | null>(null);
@@ -67,6 +76,7 @@ const Admin: React.FC = () => {
       documents: docsData,
       payments: paymentsData,
       jobs: jobsData,
+      partners: partnersData,
     } = await adminService.getAdminDashboard();
 
     setClients(clientsData);
@@ -76,7 +86,27 @@ const Admin: React.FC = () => {
     setDocuments(docsData.map(d => ({ ...d, client: clientMap[d.client_id] })));
     setPayments(paymentsData.map(p => ({ ...p, client: clientMap[p.client_id] })));
     setJobs(jobsData);
+    setPartners(partnersData);
     setLoading(false);
+  };
+
+  const setPartnerStatus = async (id: string, registration_status: AdminPartner['registration_status']) => {
+    await adminService.setPartnerRegistrationStatus(id, registration_status);
+    fetchAllData();
+  };
+
+  const togglePartnerExpanded = async (partnerId: string) => {
+    if (expandedPartner === partnerId) {
+      setExpandedPartner(null);
+      return;
+    }
+    setExpandedPartner(partnerId);
+    if (!partnerCandidates[partnerId]) {
+      setLoadingPartnerCandidates(partnerId);
+      const candidates = await adminService.getPartnerCandidates(partnerId);
+      setPartnerCandidates((prev) => ({ ...prev, [partnerId]: candidates }));
+      setLoadingPartnerCandidates(null);
+    }
   };
 
   const updateApplicationStatus = async (id: string, status: string) => {
@@ -247,6 +277,7 @@ const Admin: React.FC = () => {
     { id: 'documents', label: 'Documents', icon: FileText, count: documents.length },
     { id: 'payments', label: 'Payments', icon: CreditCard, count: payments.length },
     { id: 'jobs', label: 'Jobs', icon: Briefcase, count: jobs.length },
+    { id: 'partners', label: 'Partners', icon: Building2, count: partners.length },
   ];
 
   const filteredClients = clients.filter(c => 
@@ -679,6 +710,123 @@ const Admin: React.FC = () => {
                   ))}
                 </div>
                 {jobs.length === 0 && <p className="text-center py-8 text-gray-500">No jobs posted yet.</p>}
+              </div>
+            )}
+
+            {activeTab === 'partners' && (
+              <div className="space-y-4">
+                {partners.map((partner) => {
+                  const isExpanded = expandedPartner === partner.id;
+                  const candidates = partnerCandidates[partner.id];
+                  return (
+                    <div key={partner.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                      <div
+                        className="p-4 cursor-pointer hover:bg-gray-50 transition overflow-x-auto"
+                        onClick={() => togglePartnerExpanded(partner.id)}
+                      >
+                        <div className="flex items-center justify-between gap-4 min-w-max">
+                          <div className="flex items-center gap-4 flex-shrink-0">
+                            <div className="w-10 h-10 bg-coral/10 rounded-full flex items-center justify-center">
+                              <Building2 className="w-5 h-5 text-coral" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-navy whitespace-nowrap">{partner.company_name}</h3>
+                              <p className="text-sm text-gray-500 whitespace-nowrap">
+                                {partner.contact_person_name} — {partner.contact_email}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full whitespace-nowrap">
+                              {partner.candidate_count} candidate{partner.candidate_count === 1 ? '' : 's'}
+                            </span>
+                            {getStatusBadge(partner.registration_status)}
+                            {partner.registration_status !== 'approved' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPartnerStatus(partner.id, 'approved'); }}
+                                className="text-sm text-green-600 hover:text-green-800"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            {partner.registration_status !== 'suspended' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPartnerStatus(partner.id, 'suspended'); }}
+                                className="text-sm text-red-600 hover:text-red-800"
+                              >
+                                Suspend
+                              </button>
+                            )}
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="border-t px-4 pb-4">
+                          <h4 className="font-semibold text-navy mt-4 mb-2">Submitted Candidates</h4>
+                          {loadingPartnerCandidates === partner.id ? (
+                            <div className="text-center py-6">
+                              <div className="animate-spin w-6 h-6 border-4 border-coral border-t-transparent rounded-full mx-auto"></div>
+                            </div>
+                          ) : !candidates || candidates.length === 0 ? (
+                            <p className="text-sm text-gray-500">No candidates submitted yet.</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {candidates.map((cand) => {
+                                const candDocs = documents.filter((d) => d.partner_candidate_id === cand.id);
+                                return (
+                                  <div key={cand.id} className="bg-gray-50 rounded-lg p-3 overflow-x-auto">
+                                    <div className="flex items-center justify-between gap-4 min-w-max">
+                                      <div>
+                                        <p className="font-medium text-navy whitespace-nowrap">{cand.full_name || 'Not yet filled in'}</p>
+                                        <p className="text-xs text-gray-500 whitespace-nowrap">
+                                          {cand.nationality || '—'} → {cand.target_country || '—'} · {cand.job_category || '—'}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        {getStatusBadge(cand.status)}
+                                        {cand.video_url && (
+                                          <a
+                                            href={cand.video_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-coral hover:underline text-xs flex items-center gap-1 whitespace-nowrap"
+                                          >
+                                            Video <ExternalLink className="w-3 h-3" />
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {candDocs.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {candDocs.map((doc) => (
+                                          <button
+                                            key={doc.id}
+                                            onClick={() => runWithLoading(`preview-cand-doc-${doc.id}`, () => previewDocument(doc.file_path, doc.file_name))}
+                                            disabled={isLoading(`preview-cand-doc-${doc.id}`)}
+                                            className="text-xs bg-white border rounded px-2 py-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 whitespace-nowrap"
+                                          >
+                                            {doc.document_type}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {partners.length === 0 && <p className="text-center py-8 text-gray-500">No partners yet.</p>}
               </div>
             )}
           </>
