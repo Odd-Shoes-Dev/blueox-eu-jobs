@@ -22,13 +22,14 @@ function AppContent() {
   const location = useLocation();
   const isHomePage = location.pathname === '/';
   // The Partner Portal is a different audience with its own layout/header
-  // (PartnerLayout) — hide the regular client-facing Header/Footer there too,
-  // same as the homepage.
+  // (PartnerLayout) — hide the regular client-facing Header/Footer there.
+  // The homepage now uses the same Header as every other page; it only
+  // keeps its own full-viewport layout (no shared Footer) for its chat UI.
   const isPartnerPortal = location.pathname.startsWith('/partner-portal');
 
   return (
     <div className="min-h-screen flex flex-col">
-      {!isHomePage && !isPartnerPortal && <Header />}
+      {!isPartnerPortal && <Header />}
       <main className={isHomePage || isPartnerPortal ? '' : 'flex-grow'}>
         <Routes>
           <Route path="/" element={<Home />} />
