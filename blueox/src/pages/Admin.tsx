@@ -324,25 +324,25 @@ const Admin: React.FC = () => {
                 <div className="space-y-4">
                   {filteredApplications.map((app) => (
                     <div key={app.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                      <div 
-                        className="p-4 cursor-pointer hover:bg-gray-50 transition"
+                      <div
+                        className="p-4 cursor-pointer hover:bg-gray-50 transition overflow-x-auto"
                         onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-between gap-4 min-w-max">
+                          <div className="flex items-center gap-4 flex-shrink-0">
                             <div className="w-10 h-10 bg-coral/10 rounded-full flex items-center justify-center">
                               <MessageSquare className="w-5 h-5 text-coral" />
                             </div>
                             <div>
-                              <h3 className="font-semibold text-navy">
+                              <h3 className="font-semibold text-navy whitespace-nowrap">
                                 {app.data?.fullName as string || app.client?.full_name || 'Unknown'}
                               </h3>
-                              <p className="text-sm text-gray-500">
+                              <p className="text-sm text-gray-500 whitespace-nowrap">
                                 {app.data?.email as string || app.client?.email || 'No email'}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-shrink-0">
                             {getStatusBadge(app.user_path || app.application_type)}
                             {getStatusBadge(app.status)}
                             <select
@@ -364,16 +364,16 @@ const Admin: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                          <span>Path: {getUserPathLabel(app.user_path || '')}</span>
-                          <span>Created: {new Date(app.created_at).toLocaleDateString()}</span>
+                        <div className="mt-2 flex items-center gap-4 text-sm text-gray-500 min-w-max">
+                          <span className="whitespace-nowrap">Path: {getUserPathLabel(app.user_path || '')}</span>
+                          <span className="whitespace-nowrap">Created: {new Date(app.created_at).toLocaleDateString()}</span>
                           {app.data?.whatsapp && (
-                            <a 
+                            <a
                               href={`https://wa.me/${(app.data.whatsapp as string).replace(/\D/g, '')}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="text-green-600 hover:underline"
+                              className="text-green-600 hover:underline whitespace-nowrap"
                             >
                               WhatsApp: {app.data.whatsapp as string}
                             </a>
@@ -493,8 +493,8 @@ const Admin: React.FC = () => {
                     />
                   </div>
                 </div>
-                <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                  <table className="w-full">
+                <div className="bg-white rounded-xl overflow-x-auto shadow-sm">
+                  <table className="w-full min-w-[600px]">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
@@ -506,10 +506,10 @@ const Admin: React.FC = () => {
                     <tbody className="divide-y">
                       {filteredClients.map((c) => (
                         <tr key={c.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-navy">{c.full_name}</td>
-                          <td className="px-4 py-3 text-gray-600">{c.email}</td>
+                          <td className="px-4 py-3 font-medium text-navy whitespace-nowrap">{c.full_name}</td>
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.email}</td>
                           <td className="px-4 py-3">{getStatusBadge(c.role)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -519,8 +519,8 @@ const Admin: React.FC = () => {
             )}
 
             {activeTab === 'documents' && (
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full">
+              <div className="bg-white rounded-xl overflow-x-auto shadow-sm">
+                <table className="w-full min-w-[700px]">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Client</th>
@@ -533,9 +533,9 @@ const Admin: React.FC = () => {
                   <tbody className="divide-y">
                     {documents.map((doc) => (
                       <tr key={doc.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-navy">{doc.client?.full_name || 'Unknown'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{doc.file_name}</td>
-                        <td className="px-4 py-3">{doc.document_type}</td>
+                        <td className="px-4 py-3 font-medium text-navy whitespace-nowrap">{doc.client?.full_name || 'Unknown'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{doc.file_name}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{doc.document_type}</td>
                         <td className="px-4 py-3">
                           {doc.is_verified ? (
                             <span className="flex items-center text-green-600 text-sm">
@@ -598,8 +598,8 @@ const Admin: React.FC = () => {
                     <Plus className="w-4 h-4 mr-2" /> Add Payment
                   </button>
                 </div>
-                <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                  <table className="w-full">
+                <div className="bg-white rounded-xl overflow-x-auto shadow-sm">
+                  <table className="w-full min-w-[700px]">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Client</th>
@@ -612,11 +612,11 @@ const Admin: React.FC = () => {
                     <tbody className="divide-y">
                       {payments.map((payment) => (
                         <tr key={payment.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-navy">{payment.client?.full_name || 'Unknown'}</td>
+                          <td className="px-4 py-3 font-medium text-navy whitespace-nowrap">{payment.client?.full_name || 'Unknown'}</td>
                           <td className="px-4 py-3">
-                            <span className="bg-navy text-white text-xs px-2 py-1 rounded">Phase {payment.phase}</span>
+                            <span className="bg-navy text-white text-xs px-2 py-1 rounded whitespace-nowrap">Phase {payment.phase}</span>
                           </td>
-                          <td className="px-4 py-3 font-medium">{payment.currency} {payment.amount}</td>
+                          <td className="px-4 py-3 font-medium whitespace-nowrap">{payment.currency} {payment.amount}</td>
                           <td className="px-4 py-3">{getStatusBadge(payment.status)}</td>
                           <td className="px-4 py-3">
                             <select
