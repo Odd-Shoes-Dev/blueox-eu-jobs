@@ -24,17 +24,6 @@ interface ConversationData {
 }
 
 const Login: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'student' | 'workforce' | 'company'>('student');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<Toast | null>(null);
-  const [conversationData, setConversationData] = useState<ConversationData | null>(null);
   const { signIn, signUp, client, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,6 +31,24 @@ const Login: React.FC = () => {
   const explicitFrom = (location.state as { from?: { pathname?: string } })?.from?.pathname;
   const from = explicitFrom || '/';
   const stateConversationData = (location.state as { conversationData?: ConversationData })?.conversationData;
+  // Which portal link (Student/Workforce) actually sent us here, if any —
+  // this is a clearer, fresher signal of intent than leftover chatbot data
+  // cached in localStorage from a possibly much earlier, unrelated visit.
+  const roleFromApplyLink = explicitFrom === '/apply/workforce' ? 'workforce'
+    : explicitFrom === '/apply/student' ? 'student'
+    : null;
+
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<'student' | 'workforce' | 'company'>(roleFromApplyLink || 'student');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [conversationData, setConversationData] = useState<ConversationData | null>(null);
 
   // Visiting /login while already signed in (e.g. clicking "Sign in" again, or
   // landing here from a stale link) should bounce straight to where that account
@@ -79,7 +86,9 @@ const Login: React.FC = () => {
       if (data.contactEmail) setEmail(data.contactEmail as string);
       if (data.contactPhone) setPhone(data.contactPhone as string);
 
-      if (data.userPath) {
+      // An explicit /apply/student or /apply/workforce link always wins over
+      // cached chat data for the role — see roleFromApplyLink above.
+      if (data.userPath && !roleFromApplyLink) {
         if (data.userPath === 'company') {
           setRole('company');
         } else if ((data.userPath as string).includes('student')) {
@@ -89,6 +98,7 @@ const Login: React.FC = () => {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateConversationData]);
 
   useEffect(() => {

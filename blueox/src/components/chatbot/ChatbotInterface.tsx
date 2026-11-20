@@ -494,7 +494,7 @@ const ChatbotInterface: React.FC = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#062d79] to-[#075bc4] flex flex-col scroll-smooth pt-16 sm:pt-20">
         {/* Hero Content */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 pt-10 sm:pt-12 pb-16">
           {/* Hero Text with Typing Animation */}
           <h1 className="font-orbitron text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-center mb-2">
             <span className="text-white">{typingText.slice(0, 4)}</span>

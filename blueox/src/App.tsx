@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { AuthProvider } from './contexts/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import ScrollToTop from './components/ScrollToTop';
 import Home from './pages/Home';
 import About from './pages/About';
 import Jobs from './pages/Jobs';
@@ -29,6 +30,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <ScrollToTop />
       {!isPartnerPortal && <Header />}
       <main className={isHomePage || isPartnerPortal ? '' : 'flex-grow'}>
         <Routes>
