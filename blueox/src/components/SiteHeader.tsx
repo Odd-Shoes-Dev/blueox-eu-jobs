@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 
@@ -15,9 +15,44 @@ interface SiteHeaderProps {
 // brand mark and nav content, since those differ by audience.
 const SiteHeader: React.FC<SiteHeaderProps> = ({ homeTo, brand, desktopNav, mobileNav }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const lastScrollY = useRef(0);
+  const ticking = useRef(false);
+
+  useEffect(() => {
+    lastScrollY.current = window.scrollY;
+
+    const handleScroll = () => {
+      if (ticking.current) return;
+      ticking.current = true;
+      requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const delta = currentY - lastScrollY.current;
+        // Always visible near the top, so the bar doesn't flicker on tiny
+        // scrolls right at the start of a page. A small delta threshold
+        // (not any 1px jitter) is enough to count as a deliberate scroll.
+        if (currentY < 80) {
+          setHidden(false);
+        } else if (delta > 4) {
+          setHidden(true);
+        } else if (delta < -4) {
+          setHidden(false);
+        }
+        lastScrollY.current = currentY;
+        ticking.current = false;
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <header className="bg-white shadow-sm fixed w-full top-0 z-50">
+    <header
+      className={`bg-white shadow-sm fixed w-full top-0 z-50 transition-transform duration-300 ease-in-out ${
+        hidden && !isMenuOpen ? '-translate-y-full' : 'translate-y-0'
+      }`}
+    >
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link to={homeTo} className="flex items-center space-x-3">
