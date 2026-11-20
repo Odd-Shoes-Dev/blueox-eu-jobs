@@ -38,11 +38,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
     const client = rows[0];
 
-    await sendEmail(
-      email,
-      'Verify your Blue OX account',
-      `Welcome to Blue OX! Verify your email using this token: ${verificationToken}`
-    );
+    // The account is already created at this point — a failed/rejected send
+    // (e.g. Resend refusing a non-whitelisted test address) must not fail the
+    // signup itself, which would otherwise leave the client created but the
+    // request reporting an error.
+    try {
+      await sendEmail(
+        email,
+        'Verify your Blue OX account',
+        `Welcome to Blue OX! Verify your email using this token: ${verificationToken}`
+      );
+    } catch (err) {
+      console.error('[signup] verification email failed to send:', err);
+    }
 
     const token = signSessionToken(client.id);
     return res.status(201).json({ token, client });
@@ -87,11 +95,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
     const partner = rows[0];
 
-    await sendEmail(
-      email,
-      'Verify your Blue OX Partner account',
-      `Welcome to the Blue OX Partner Portal! Verify your email using this token: ${verificationToken}`
-    );
+    // See the client signup branch above — a failed send must not fail a
+    // signup whose account has already been created.
+    try {
+      await sendEmail(
+        email,
+        'Verify your Blue OX Partner account',
+        `Welcome to the Blue OX Partner Portal! Verify your email using this token: ${verificationToken}`
+      );
+    } catch (err) {
+      console.error('[partner-signup] verification email failed to send:', err);
+    }
 
     // Login succeeds regardless of registration_status — it's informational
     // only, not a login gate (admin can suspend bad actors later).
@@ -111,6 +125,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const valid = await verifyPassword(password, partner.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
+    if (partner.registration_status === 'suspended') {
+      return res.status(403).json({ error: 'Your account has been suspended, contact Blue Ox' });
+    }
+    if (partner.registration_status === 'rejected') {
+      return res.status(403).json({ error: 'Your partner application was not approved, contact Blue Ox' });
+    }
 
     const token = signPartnerSessionToken(partner.id);
     const { password_hash, verification_token, reset_token, ...safePartner } = partner;
@@ -161,7 +182,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           WHERE id = ${rows[0].id}
         `;
       }
-      await sendEmail(email, 'Reset your Blue OX password', `Reset your password using this token: ${resetToken}`);
+      try {
+        await sendEmail(email, 'Reset your Blue OX password', `Reset your password using this token: ${resetToken}`);
+      } catch (err) {
+        console.error('[request-password-reset] email failed to send:', err);
+      }
     }
 
     return res.status(200).json({ ok: true });

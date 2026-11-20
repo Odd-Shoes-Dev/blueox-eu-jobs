@@ -76,7 +76,13 @@ export async function getAuthedPartner(req: VercelRequest): Promise<AuthedPartne
   const rows = await sql`
     SELECT id, company_name, contact_email, registration_status FROM partners WHERE id = ${payload.sub}
   `;
-  return (rows[0] as AuthedPartner) ?? null;
+  const partner = rows[0] as AuthedPartner | undefined;
+  if (!partner) return null;
+  // A partner suspended/rejected mid-session (token still valid) loses access
+  // immediately, not just on their next login — see partner-login's own check
+  // in auth/[action].ts for the user-facing message shown at sign-in.
+  if (partner.registration_status === 'suspended' || partner.registration_status === 'rejected') return null;
+  return partner;
 }
 
 /** Candidate self-service auth — not a JWT at all. The access_token travels as a

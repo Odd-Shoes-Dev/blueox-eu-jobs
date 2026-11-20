@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Copy, Check } from 'lucide-react';
 import * as partnerCandidatesService from '../../services/partnerCandidatesService';
 import type { PartnerCandidate } from '../../services/partnerCandidatesService';
+import { usePartnerAuth } from '../../contexts/PartnerAuthContext';
 
 const STATUS_LABEL: Record<PartnerCandidate['status'], string> = {
   draft: 'Draft',
@@ -19,6 +20,8 @@ const STATUS_CLASSES: Record<PartnerCandidate['status'], string> = {
 };
 
 const Dashboard: React.FC = () => {
+  const { signOut } = usePartnerAuth();
+  const navigate = useNavigate();
   const [candidates, setCandidates] = useState<PartnerCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -27,7 +30,16 @@ const Dashboard: React.FC = () => {
 
   const fetchCandidates = async () => {
     setLoading(true);
-    setCandidates(await partnerCandidatesService.listCandidates());
+    try {
+      setCandidates(await partnerCandidatesService.listCandidates());
+    } catch {
+      // Most likely the partner was suspended/rejected mid-session and the
+      // token no longer authenticates — bounce to login, where signing in
+      // again will surface the specific reason.
+      await signOut();
+      navigate('/partner-portal/login', { replace: true });
+      return;
+    }
     setLoading(false);
   };
 

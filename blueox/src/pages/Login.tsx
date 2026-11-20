@@ -20,8 +20,14 @@ interface ConversationData {
   phone?: string;
   nationality?: string;
   targetCountries?: string[] | string;
+  savedAt?: string;
   [key: string]: unknown;
 }
+
+// An abandoned chat (closed the tab mid-conversation, never finished signup)
+// leaves this cached in localStorage indefinitely — only honor it long enough
+// to resume shortly after, not forever on every unrelated later visit.
+const CONVERSATION_DATA_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
 const Login: React.FC = () => {
   const { signIn, signUp, client, loading: authLoading } = useAuth();
@@ -38,7 +44,9 @@ const Login: React.FC = () => {
     : explicitFrom === '/apply/student' ? 'student'
     : null;
 
-  const [isLogin, setIsLogin] = useState(true);
+  // Arriving via an explicit Apply link means no account yet — default to
+  // Sign Up. Otherwise Sign In (e.g. the header's plain "Sign In" link).
+  const [isLogin, setIsLogin] = useState(!roleFromApplyLink);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -68,7 +76,13 @@ const Login: React.FC = () => {
       const stored = localStorage.getItem('blueox_conversation_data');
       if (stored) {
         try {
-          data = JSON.parse(stored);
+          const parsed = JSON.parse(stored) as ConversationData;
+          const savedAt = parsed.savedAt ? new Date(parsed.savedAt).getTime() : NaN;
+          if (!isNaN(savedAt) && Date.now() - savedAt < CONVERSATION_DATA_MAX_AGE_MS) {
+            data = parsed;
+          } else {
+            localStorage.removeItem('blueox_conversation_data');
+          }
         } catch {
           console.error('Failed to parse stored conversation data');
         }
