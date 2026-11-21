@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Copy, Check, Upload, Trash2, Download, Lock, ExternalLink } from 'lucide-react';
+import { Copy, Check, Upload, Trash2, Download, Lock, ExternalLink, Send, RotateCcw } from 'lucide-react';
 import * as partnerCandidatesService from '../../services/partnerCandidatesService';
 import type { PartnerCandidate, PartnerCandidateDocument } from '../../services/partnerCandidatesService';
 import * as storageService from '../../services/storageService';
@@ -46,6 +46,8 @@ const CandidateDetail: React.FC = () => {
   const [note, setNote] = useState('');
   const [copied, setCopied] = useState(false);
   const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // Tracks what's actually been saved, so the autosave effect can tell a real
   // edit apart from its own save response coming back in, and the debounce
@@ -134,6 +136,31 @@ const CandidateDetail: React.FC = () => {
   const handleLock = async () => {
     if (!id) return;
     setCandidate(await partnerCandidatesService.lockCandidate(id));
+  };
+
+  const handleSubmit = async () => {
+    if (!id) return;
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      // Flush any pending autosave first, so a just-typed field isn't left
+      // behind when the record locks on submit.
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        await doSave();
+      }
+      setCandidate(await partnerCandidatesService.submitCandidate(id));
+    } catch (err) {
+      setSubmitError((err as Error).message || 'Could not submit. Please fill in all required fields.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRevertToDraft = async () => {
+    if (!id) return;
+    if (!confirm('Move this candidate back to draft? It will become editable again.')) return;
+    setCandidate(await partnerCandidatesService.revertToDraft(id));
   };
 
   const handleRequestChanges = async () => {
@@ -240,7 +267,7 @@ const CandidateDetail: React.FC = () => {
             {saveStatus === 'saving' && 'Saving…'}
             {saveStatus === 'saved' && 'All changes saved'}
             {saveStatus === 'error' && (
-              <span className="text-red-600">Couldn't save — check your connection</span>
+              <span className="text-red-600">Couldn't save. Check your connection</span>
             )}
           </span>
         </div>
@@ -292,13 +319,44 @@ const CandidateDetail: React.FC = () => {
 
       <div className="bg-white rounded-xl border border-gray-100 p-6">
         <h2 className="font-space font-bold text-navy mb-4">Status: {candidate.status}</h2>
+        {candidate.status === 'draft' && (
+          <p className="text-sm text-gray-500 mb-4">
+            While this candidate is a draft, only you can see their details. Blue Ox can't see them yet.
+            Submitting makes this candidate visible to Blue Ox for review.
+          </p>
+        )}
+        {candidate.status === 'submitted' && (
+          <p className="text-sm text-gray-500 mb-4">
+            Locking freezes the candidate's own link so they can't change anything while you're reviewing it.
+            You can still edit it yourself, and you can revert it to draft at any time to unlock it again.
+          </p>
+        )}
+        {submitError && <p className="text-red-600 text-sm mb-3">{submitError}</p>}
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          {candidate.status === 'draft' && (
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="inline-flex items-center justify-center gap-2 bg-coral text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:bg-coral-dark transition disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" /> {submitting ? 'Submitting…' : 'Submit'}
+            </button>
+          )}
           {candidate.status === 'submitted' && (
             <button
               onClick={handleLock}
+              title="Freezes the candidate's own link while you review it"
               className="inline-flex items-center justify-center gap-2 bg-navy text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:opacity-90 transition"
             >
               <Lock className="w-4 h-4" /> Lock / Start Review
+            </button>
+          )}
+          {candidate.status !== 'draft' && (
+            <button
+              onClick={handleRevertToDraft}
+              className="inline-flex items-center justify-center gap-2 bg-gray-100 text-navy px-5 py-2.5 rounded-lg font-space font-semibold hover:bg-gray-200 transition"
+            >
+              <RotateCcw className="w-4 h-4" /> Revert to Draft
             </button>
           )}
         </div>

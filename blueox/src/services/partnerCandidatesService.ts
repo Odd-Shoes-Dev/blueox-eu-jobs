@@ -61,6 +61,17 @@ export async function lockCandidate(id: string): Promise<PartnerCandidate> {
   return partnerApiFetch(`${BASE}&id=${id}&action=lock`, { method: 'PATCH' });
 }
 
+// Submitting requires full_name/date_of_birth/nationality/email to already be
+// filled in (enforced server-side) — for a partner who has everything and
+// doesn't need the candidate to visit their self-service link at all.
+export async function submitCandidate(id: string): Promise<PartnerCandidate> {
+  return partnerApiFetch(`${BASE}&id=${id}&action=submit`, { method: 'PATCH' });
+}
+
+export async function revertToDraft(id: string): Promise<PartnerCandidate> {
+  return partnerApiFetch(`${BASE}&id=${id}&action=revert-to-draft`, { method: 'PATCH' });
+}
+
 export async function requestChanges(id: string, note: string): Promise<PartnerCandidate> {
   return partnerApiFetch(`${BASE}&id=${id}&action=request-changes`, {
     method: 'PATCH',

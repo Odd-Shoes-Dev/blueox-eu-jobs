@@ -160,7 +160,7 @@ const CandidateSelfService: React.FC = () => {
       const updated = await candidateSelfService.submitCandidateByToken(token);
       setCandidate(updated);
     } catch (err) {
-      setSubmitError((err as Error).message || 'Could not submit — please fill in all required fields.');
+      setSubmitError((err as Error).message || 'Could not submit. Please fill in all required fields.');
     } finally {
       setSubmitting(false);
     }
@@ -279,7 +279,7 @@ const CandidateSelfService: React.FC = () => {
                 {saveStatus === 'saving' && 'Saving…'}
                 {saveStatus === 'saved' && 'All changes saved'}
                 {saveStatus === 'error' && (
-                  <span className="text-red-600">Couldn't save — check your connection</span>
+                  <span className="text-red-600">Couldn't save. Check your connection</span>
                 )}
               </span>
             </div>
@@ -336,6 +336,9 @@ const CandidateSelfService: React.FC = () => {
 
         {candidate.status === 'draft' && (
           <div className="text-center">
+            <p className="text-sm text-gray-500 mb-3">
+              Until you submit, only your partner can see these details. Submitting sends them to Blue Ox for review.
+            </p>
             {submitError && <p className="text-red-600 text-sm mb-3">{submitError}</p>}
             <button
               onClick={handleSubmit}
