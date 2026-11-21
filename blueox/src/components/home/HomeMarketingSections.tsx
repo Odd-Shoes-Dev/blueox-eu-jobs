@@ -7,7 +7,6 @@ import WhyDifferentSection from './WhyDifferentSection';
 import PricingSection from './PricingSection';
 import FinalCtaSection from './FinalCtaSection';
 import JobOfferChecker from './checker/JobOfferChecker';
-import MarketingFooter from './MarketingFooter';
 import StickyMobileCta from './StickyMobileCta';
 
 interface Props {
@@ -25,7 +24,6 @@ const HomeMarketingSections: React.FC<Props> = ({ onStartChat }) => {
       <PricingSection />
       <FinalCtaSection />
       <JobOfferChecker />
-      <MarketingFooter />
       <StickyMobileCta onStartChat={onStartChat} />
     </div>
   );
