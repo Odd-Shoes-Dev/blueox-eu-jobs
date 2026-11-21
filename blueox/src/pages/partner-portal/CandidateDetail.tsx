@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Copy, Check, Upload, Trash2, Download, Lock, ExternalLink } from 'lucide-react';
 import * as partnerCandidatesService from '../../services/partnerCandidatesService';
 import type { PartnerCandidate, PartnerCandidateDocument } from '../../services/partnerCandidatesService';
 import * as storageService from '../../services/storageService';
+
+const AUTOSAVE_DELAY_MS = 1500;
 
 const DOC_TYPES = ['passport', 'cv', 'education_certificate', 'work_reference', 'medical_certificate', 'police_clearance'];
 const DOC_LABELS: Record<string, string> = {
@@ -28,15 +30,28 @@ const FIELDS: { key: keyof PartnerCandidate; label: string; type?: string }[] = 
   { key: 'video_url', label: 'Skills video link' },
 ];
 
+const AUTOSAVE_KEYS: (keyof PartnerCandidate)[] = FIELDS.map((f) => f.key);
+
+// A snapshot of just the fields we autosave, so the debounce effect can tell
+// a real edit apart from a save's own response coming back in (which would
+// otherwise retrigger itself in a loop) or the initial fetch on mount.
+const snapshotOf = (c: PartnerCandidate) => JSON.stringify(AUTOSAVE_KEYS.map((k) => c[k] ?? null));
+
 const CandidateDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [candidate, setCandidate] = useState<PartnerCandidate | null>(null);
   const [documents, setDocuments] = useState<PartnerCandidateDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [note, setNote] = useState('');
   const [copied, setCopied] = useState(false);
   const [uploadingType, setUploadingType] = useState<string | null>(null);
+
+  // Tracks what's actually been saved, so the autosave effect can tell a real
+  // edit apart from its own save response coming back in, and the debounce
+  // timer so a burst of keystrokes only fires one request.
+  const lastSavedRef = useRef<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchAll = async () => {
     if (!id) return;
@@ -46,6 +61,7 @@ const CandidateDetail: React.FC = () => {
       partnerCandidatesService.listPartnerDocuments(),
     ]);
     setCandidate(c);
+    lastSavedRef.current = snapshotOf(c);
     setDocuments(docs.filter((d) => d.partner_candidate_id === id));
     setLoading(false);
   };
@@ -60,23 +76,59 @@ const CandidateDetail: React.FC = () => {
     setCandidate({ ...candidate, [key]: value });
   };
 
-  const handleSave = async () => {
+  const doSave = async () => {
     if (!candidate || !id) return;
-    setSaving(true);
-    const updated = await partnerCandidatesService.updateCandidate(id, {
-      full_name: candidate.full_name ?? undefined,
-      date_of_birth: candidate.date_of_birth ?? undefined,
-      nationality: candidate.nationality ?? undefined,
-      phone: candidate.phone ?? undefined,
-      email: candidate.email ?? undefined,
-      country_of_residence: candidate.country_of_residence ?? undefined,
-      target_country: candidate.target_country ?? undefined,
-      job_category: candidate.job_category ?? undefined,
-      driving_licence_conversion_status: candidate.driving_licence_conversion_status ?? undefined,
-      video_url: candidate.video_url ?? undefined,
-    });
-    setCandidate(updated);
-    setSaving(false);
+    // Snapshot exactly what we're sending now — the request can take a
+    // second or more, and the user may well have kept typing (possibly into
+    // another field) before it resolves. That later state must win, so the
+    // response below only ever updates server-controlled fields, never the
+    // form fields themselves.
+    const sentSnapshot = snapshotOf(candidate);
+    setSaveStatus('saving');
+    try {
+      const updated = await partnerCandidatesService.updateCandidate(id, {
+        full_name: candidate.full_name ?? undefined,
+        date_of_birth: candidate.date_of_birth ?? undefined,
+        nationality: candidate.nationality ?? undefined,
+        phone: candidate.phone ?? undefined,
+        email: candidate.email ?? undefined,
+        country_of_residence: candidate.country_of_residence ?? undefined,
+        target_country: candidate.target_country ?? undefined,
+        job_category: candidate.job_category ?? undefined,
+        driving_licence_conversion_status: candidate.driving_licence_conversion_status ?? undefined,
+        video_url: candidate.video_url ?? undefined,
+      });
+      lastSavedRef.current = sentSnapshot;
+      setCandidate((current) => current && ({
+        ...current,
+        status: updated.status,
+        changes_requested_note: updated.changes_requested_note,
+        updated_at: updated.updated_at,
+      }));
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
+    }
+  };
+
+  // Autosave: debounced a bit after the user stops typing, so there's never
+  // more than a couple of seconds of work that could be lost to a closed tab,
+  // dropped connection, or just forgetting to click Save.
+  useEffect(() => {
+    if (!candidate) return;
+    if (snapshotOf(candidate) === lastSavedRef.current) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(doSave, AUTOSAVE_DELAY_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate]);
+
+  const handleSave = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    doSave();
   };
 
   const handleLock = async () => {
@@ -176,13 +228,22 @@ const CandidateDetail: React.FC = () => {
             Open video link <ExternalLink className="w-3 h-3" />
           </a>
         )}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="mt-4 bg-coral text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:bg-coral-dark transition disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saveStatus === 'saving'}
+            className="bg-coral text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:bg-coral-dark transition disabled:opacity-50"
+          >
+            {saveStatus === 'saving' ? 'Saving…' : 'Save changes'}
+          </button>
+          <span className="text-sm text-gray-500">
+            {saveStatus === 'saving' && 'Saving…'}
+            {saveStatus === 'saved' && 'All changes saved'}
+            {saveStatus === 'error' && (
+              <span className="text-red-600">Couldn't save — check your connection</span>
+            )}
+          </span>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">

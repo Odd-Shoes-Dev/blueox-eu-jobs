@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Upload, Trash2, Download, CheckCircle } from 'lucide-react';
 import * as candidateSelfService from '../../services/candidateSelfService';
 import type { PartnerCandidate } from '../../services/partnerCandidatesService';
 import * as storageService from '../../services/storageService';
+
+const AUTOSAVE_DELAY_MS = 1500;
 
 type Candidate = Omit<PartnerCandidate, 'access_token'>;
 
@@ -36,16 +38,29 @@ const FIELDS: { key: keyof Candidate; label: string; type?: string }[] = [
   { key: 'driving_licence_conversion_status', label: 'Driving licence conversion status' },
 ];
 
+const AUTOSAVE_KEYS: (keyof Candidate)[] = [...FIELDS.map((f) => f.key), 'video_url'];
+
+// A snapshot of just the fields we autosave, so the debounce effect can tell
+// a real edit apart from a save's own response coming back in (which would
+// otherwise retrigger itself in a loop) or the initial fetch on mount.
+const snapshotOf = (c: Candidate) => JSON.stringify(AUTOSAVE_KEYS.map((k) => c[k] ?? null));
+
 const CandidateSelfService: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [documents, setDocuments] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [uploadingType, setUploadingType] = useState<string | null>(null);
+
+  // Tracks what's actually been saved, so the autosave effect can tell a real
+  // edit apart from its own save response coming back in, and the debounce
+  // timer so a burst of keystrokes only fires one request.
+  const lastSavedRef = useRef<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchAll = async () => {
     if (!token) return;
@@ -55,6 +70,7 @@ const CandidateSelfService: React.FC = () => {
         candidateSelfService.listDocumentsByToken(token),
       ]);
       setCandidate(c);
+      lastSavedRef.current = snapshotOf(c);
       setDocuments(docs as unknown as Doc[]);
     } catch {
       setNotFound(true);
@@ -75,23 +91,59 @@ const CandidateSelfService: React.FC = () => {
     setCandidate({ ...candidate, [key]: value });
   };
 
-  const handleSave = async () => {
+  const doSave = async () => {
     if (!candidate || !token) return;
-    setSaving(true);
-    const updated = await candidateSelfService.updateCandidateByToken(token, {
-      full_name: candidate.full_name ?? undefined,
-      date_of_birth: candidate.date_of_birth ?? undefined,
-      nationality: candidate.nationality ?? undefined,
-      phone: candidate.phone ?? undefined,
-      email: candidate.email ?? undefined,
-      country_of_residence: candidate.country_of_residence ?? undefined,
-      target_country: candidate.target_country ?? undefined,
-      job_category: candidate.job_category ?? undefined,
-      driving_licence_conversion_status: candidate.driving_licence_conversion_status ?? undefined,
-      video_url: candidate.video_url ?? undefined,
-    });
-    setCandidate(updated);
-    setSaving(false);
+    // Snapshot exactly what we're sending now — the request can take a
+    // second or more, and the user may well have kept typing (possibly into
+    // another field) before it resolves. That later state must win, so the
+    // response below only ever updates server-controlled fields, never the
+    // form fields themselves.
+    const sentSnapshot = snapshotOf(candidate);
+    setSaveStatus('saving');
+    try {
+      const updated = await candidateSelfService.updateCandidateByToken(token, {
+        full_name: candidate.full_name ?? undefined,
+        date_of_birth: candidate.date_of_birth ?? undefined,
+        nationality: candidate.nationality ?? undefined,
+        phone: candidate.phone ?? undefined,
+        email: candidate.email ?? undefined,
+        country_of_residence: candidate.country_of_residence ?? undefined,
+        target_country: candidate.target_country ?? undefined,
+        job_category: candidate.job_category ?? undefined,
+        driving_licence_conversion_status: candidate.driving_licence_conversion_status ?? undefined,
+        video_url: candidate.video_url ?? undefined,
+      });
+      lastSavedRef.current = sentSnapshot;
+      setCandidate((current) => current && ({
+        ...current,
+        status: updated.status,
+        changes_requested_note: updated.changes_requested_note,
+        updated_at: updated.updated_at,
+      }));
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
+    }
+  };
+
+  // Autosave: debounced a bit after the user stops typing, so there's never
+  // more than a couple of seconds of work that could be lost to a closed tab,
+  // dropped connection, or just forgetting to click Save.
+  useEffect(() => {
+    if (!candidate || !editable) return;
+    if (snapshotOf(candidate) === lastSavedRef.current) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(doSave, AUTOSAVE_DELAY_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate, editable]);
+
+  const handleSave = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    doSave();
   };
 
   const handleSubmit = async () => {
@@ -99,6 +151,12 @@ const CandidateSelfService: React.FC = () => {
     setSubmitError('');
     setSubmitting(true);
     try {
+      // Flush any pending autosave first, so a just-typed field isn't left
+      // behind when the record locks on submit.
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        await doSave();
+      }
       const updated = await candidateSelfService.submitCandidateByToken(token);
       setCandidate(updated);
     } catch (err) {
@@ -209,13 +267,22 @@ const CandidateSelfService: React.FC = () => {
           </div>
 
           {editable && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="mt-4 bg-coral text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:bg-coral-dark transition disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saveStatus === 'saving'}
+                className="bg-coral text-white px-5 py-2.5 rounded-lg font-space font-semibold hover:bg-coral-dark transition disabled:opacity-50"
+              >
+                {saveStatus === 'saving' ? 'Saving…' : 'Save'}
+              </button>
+              <span className="text-sm text-gray-500">
+                {saveStatus === 'saving' && 'Saving…'}
+                {saveStatus === 'saved' && 'All changes saved'}
+                {saveStatus === 'error' && (
+                  <span className="text-red-600">Couldn't save — check your connection</span>
+                )}
+              </span>
+            </div>
           )}
         </fieldset>
 
