@@ -828,10 +828,13 @@ const Admin: React.FC = () => {
                     ) : (
                       <div className="space-y-3">
                         {candidates.map((cand) => (
-                          <button
+                          <div
                             key={cand.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => setSelectedCandidateId(cand.id)}
-                            className="w-full text-left bg-white border rounded-lg p-3 hover:bg-gray-50 transition overflow-x-auto"
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedCandidateId(cand.id); }}
+                            className="cursor-pointer bg-white border rounded-lg p-3 hover:bg-gray-50 transition overflow-x-auto"
                           >
                             <div className="flex items-center justify-between gap-4 min-w-max">
                               <div>
@@ -845,7 +848,7 @@ const Admin: React.FC = () => {
                                 <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90" />
                               </div>
                             </div>
-                          </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -857,10 +860,13 @@ const Admin: React.FC = () => {
               return (
                 <div className="space-y-4">
                   {partners.map((partner) => (
-                    <button
+                    <div
                       key={partner.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => selectPartner(partner.id)}
-                      className="w-full text-left bg-white rounded-xl shadow-sm border p-4 hover:bg-gray-50 transition overflow-x-auto"
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectPartner(partner.id); }}
+                      className="cursor-pointer bg-white rounded-xl shadow-sm border p-4 hover:bg-gray-50 transition overflow-x-auto"
                     >
                       <div className="flex items-center justify-between gap-4 min-w-max">
                         <div className="flex items-center gap-4 flex-shrink-0">
@@ -879,9 +885,7 @@ const Admin: React.FC = () => {
                             {partner.candidate_count} submitted
                           </span>
                           {getStatusBadge(partner.registration_status)}
-                          <span
-                            role="button"
-                            tabIndex={0}
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               if (partnerMenu?.id === partner.id) {
@@ -894,11 +898,11 @@ const Admin: React.FC = () => {
                             className="p-1 rounded hover:bg-gray-200 text-gray-500"
                           >
                             <MoreVertical className="w-5 h-5" />
-                          </span>
+                          </button>
                           <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90" />
                         </div>
                       </div>
-                    </button>
+                    </div>
                   ))}
                   {partners.length === 0 && <p className="text-center py-8 text-gray-500">No partners yet.</p>}
                 </div>

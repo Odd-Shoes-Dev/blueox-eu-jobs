@@ -31,6 +31,39 @@ export interface PartnerCandidate {
 
 const BASE = '/api/clients?resource=partner-candidates';
 
+// The six document types a candidate can upload, shared across Dashboard.tsx,
+// CandidateDetail.tsx, and CandidateSelfService.tsx so the completion
+// calculation below and each page's upload grid never drift out of sync.
+export const CANDIDATE_DOC_TYPES = [
+  'passport', 'cv', 'education_certificate', 'work_reference', 'medical_certificate', 'police_clearance',
+] as const;
+
+type CompletionFields = Pick<
+  PartnerCandidate,
+  | 'full_name' | 'date_of_birth' | 'nationality' | 'phone' | 'email'
+  | 'country_of_residence' | 'target_country' | 'job_category'
+  | 'driving_licence_conversion_status' | 'video_url'
+>;
+
+const COMPLETION_FIELDS: (keyof CompletionFields)[] = [
+  'full_name', 'date_of_birth', 'nationality', 'phone', 'email',
+  'country_of_residence', 'target_country', 'job_category',
+  'driving_licence_conversion_status', 'video_url',
+];
+
+// A purely visual progress indicator (how much of the form and documents is
+// filled in) for a partner or candidate working on a record. Never affects
+// submit eligibility, which is its own, separate check on the backend
+// (REQUIRED_TO_SUBMIT in clients.ts), or anything else. Takes just the
+// fields it needs (not the full PartnerCandidate) so it also accepts the
+// candidate self-service page's Omit<PartnerCandidate, 'access_token'> view.
+export function getCompletionPercent(candidate: CompletionFields, uploadedDocCount: number): number {
+  const filledFields = COMPLETION_FIELDS.filter((f) => !!candidate[f]).length;
+  const totalItems = COMPLETION_FIELDS.length + CANDIDATE_DOC_TYPES.length;
+  const completedItems = filledFields + Math.min(uploadedDocCount, CANDIDATE_DOC_TYPES.length);
+  return Math.round((completedItems / totalItems) * 100);
+}
+
 export async function listCandidates(): Promise<PartnerCandidate[]> {
   return partnerApiFetch(BASE);
 }

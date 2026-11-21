@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Copy, Check, MoreVertical } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Copy, Check, MoreVertical, ChevronRight } from 'lucide-react';
 import * as partnerCandidatesService from '../../services/partnerCandidatesService';
 import type { PartnerCandidate } from '../../services/partnerCandidatesService';
+import { getCompletionPercent } from '../../services/partnerCandidatesService';
 import { usePartnerAuth } from '../../contexts/PartnerAuthContext';
+import CompletionBar from '../../components/CompletionBar';
 
 const STATUS_LABEL: Record<PartnerCandidate['status'], string> = {
   draft: 'Draft',
@@ -33,11 +35,24 @@ const Dashboard: React.FC = () => {
   // near the bottom instead of letting it float above the page.
   const [candidateMenu, setCandidateMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   const [actionError, setActionError] = useState('');
+  // Document count per candidate, for the completion percentage column below
+  // (a purely visual guide, see getCompletionPercent) — fetched once for all
+  // of this partner's candidates rather than per row.
+  const [docCounts, setDocCounts] = useState<Record<string, number>>({});
 
   const fetchCandidates = async () => {
     setLoading(true);
     try {
-      setCandidates(await partnerCandidatesService.listCandidates());
+      const [list, docs] = await Promise.all([
+        partnerCandidatesService.listCandidates(),
+        partnerCandidatesService.listPartnerDocuments().catch(() => []),
+      ]);
+      setCandidates(list);
+      const counts: Record<string, number> = {};
+      for (const d of docs) {
+        counts[d.partner_candidate_id] = (counts[d.partner_candidate_id] || 0) + 1;
+      }
+      setDocCounts(counts);
     } catch {
       // Most likely the partner was suspended/rejected mid-session and the
       // token no longer authenticates — bounce to login, where signing in
@@ -147,23 +162,28 @@ const Dashboard: React.FC = () => {
           No candidates yet. Click "Add Candidate" to create your first one.
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-gray-50 text-left text-gray-500">
               <tr>
                 <th className="px-5 py-3 font-space font-semibold">Name</th>
                 <th className="px-5 py-3 font-space font-semibold">Target country</th>
                 <th className="px-5 py-3 font-space font-semibold">Status</th>
+                <th className="px-5 py-3 font-space font-semibold">Completion</th>
                 <th className="px-5 py-3 font-space font-semibold">Created</th>
                 <th className="px-5 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {candidates.map((c) => (
-                <tr key={c.id} className="border-t border-gray-100">
-                  <td className="px-5 py-3 text-navy font-medium">{c.full_name || '(no name yet)'}</td>
-                  <td className="px-5 py-3 text-gray-600">{c.target_country || '—'}</td>
-                  <td className="px-5 py-3">
+                <tr
+                  key={c.id}
+                  onClick={() => navigate(`/partner-portal/candidates/${c.id}`)}
+                  className="border-t border-gray-100 cursor-pointer hover:bg-gray-50 transition"
+                >
+                  <td className="px-5 py-3 text-navy font-medium whitespace-nowrap">{c.full_name || '(no name yet)'}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{c.target_country || '—'}</td>
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <span
                       title={c.status === 'draft' ? "Not visible to Blue Ox yet. Submit it so they can see it" : undefined}
                       className={`px-2.5 py-1 rounded-full text-xs font-space font-semibold ${STATUS_CLASSES[c.status]}`}
@@ -171,14 +191,16 @@ const Dashboard: React.FC = () => {
                       {STATUS_LABEL[c.status]}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-gray-500">{new Date(c.created_at).toLocaleDateString()}</td>
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <CompletionBar percent={getCompletionPercent(c, docCounts[c.id] || 0)} compact />
+                  </td>
+                  <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleDateString()}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      <Link to={`/partner-portal/candidates/${c.id}`} className="text-coral font-space font-semibold hover:underline">
-                        View
-                      </Link>
+                      <ChevronRight className="w-4 h-4 text-gray-300" />
                       <button
                         onClick={(e) => {
+                          e.stopPropagation();
                           if (candidateMenu?.id === c.id) {
                             setCandidateMenu(null);
                             return;
