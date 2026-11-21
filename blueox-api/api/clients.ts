@@ -33,8 +33,11 @@ const REQUIRED_TO_SUBMIT = ['full_name', 'date_of_birth', 'nationality', 'email'
 //     here yet.
 //   GET/PATCH ...&token=:accessToken — candidate self-service, no id needed
 //     (the token alone resolves to exactly one row).
-//   PATCH ...&action=submit — candidate-token only, draft -> submitted.
+//   PATCH ...&action=submit — candidate token or owning partner JWT,
+//     draft -> submitted.
 //   PATCH ...&action=lock | request-changes — partner JWT only.
+//   PATCH ...&action=revert-to-draft — partner JWT only, undoes
+//     submitted/locked/changes_requested back to draft.
 //
 // `resource=partner` — admin only, read/approve/suspend a partner's
 //   registration_status: GET/PATCH ...&id=:id.
@@ -210,7 +213,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'submit') {
-      if (!candidate) return res.status(403).json({ error: 'Forbidden' });
+      // Either the candidate themselves (self-service link) or the owning
+      // partner (who may already have everything and not need the candidate
+      // to visit the link at all) can submit.
+      if (!candidate && !authedPartner) return res.status(403).json({ error: 'Forbidden' });
       if (row.status !== 'draft') return res.status(403).json({ error: 'Cannot submit from the current status' });
       const missing = REQUIRED_TO_SUBMIT.filter((f) => !row![f]);
       if (missing.length > 0) {
@@ -218,6 +224,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const updated = await sql`
         UPDATE partner_candidates SET status = 'submitted', updated_at = now()
+        WHERE id = ${targetId}
+        RETURNING id, partner_id, access_token, status, changes_requested_note,
+          full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
+          country_of_residence, eu_citizenship, target_country, job_category,
+          driving_licence, driving_licence_conversion_status, video_url,
+          placement_status, placed_job_id, placed_at, created_at, updated_at
+      `;
+      return res.status(200).json(updated[0]);
+    }
+
+    if (action === 'revert-to-draft') {
+      // Partner-only — undo a submit/lock/request-changes, e.g. after
+      // noticing a mistake, so they can edit and resubmit. Candidates can
+      // already get back to draft by editing during changes_requested; this
+      // is the partner's equivalent for when they manage the record directly.
+      if (!authedPartner) return res.status(403).json({ error: 'Forbidden' });
+      if (row.status === 'draft') return res.status(403).json({ error: 'Already a draft' });
+      const updated = await sql`
+        UPDATE partner_candidates SET status = 'draft', changes_requested_note = NULL, updated_at = now()
         WHERE id = ${targetId}
         RETURNING id, partner_id, access_token, status, changes_requested_note,
           full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,

@@ -27,9 +27,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Read-only partner visibility for blueox-admin — no candidate editing here,
     // just the list plus the registration_status approve/suspend toggle (done via
     // PATCH /api/partner-candidates?resource=partner&id=, not this endpoint).
+    // candidate_count excludes drafts — a candidate the partner/candidate hasn't
+    // finished filling in yet isn't something admin needs visibility into; see
+    // the matching `status !== 'draft'` filter on the frontend's candidate list.
     sql`SELECT id, company_name, contact_person_name, contact_email, contact_phone,
                registration_status, created_at,
-               (SELECT count(*) FROM partner_candidates pc WHERE pc.partner_id = partners.id) AS candidate_count
+               (SELECT count(*) FROM partner_candidates pc WHERE pc.partner_id = partners.id AND pc.status != 'draft') AS candidate_count
         FROM partners ORDER BY created_at DESC`,
   ]);
 

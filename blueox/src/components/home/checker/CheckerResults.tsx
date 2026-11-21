@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { WHATSAPP_LINK } from '../../chatbot/conversationFlow';
 import { sendCheckerReport } from '../../../services/checkerReportService';

@@ -12,12 +12,17 @@ const PartnerSignUp: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const { signUp } = usePartnerAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!agreedToTerms) {
+      setError('Please accept the Terms of Use and Privacy Policy to continue');
+      return;
+    }
     setLoading(true);
     const { error } = await signUp({
       company_name: companyName,
@@ -107,9 +112,23 @@ const PartnerSignUp: React.FC = () => {
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent"
           />
         </div>
+        <label className="flex items-start gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={agreedToTerms}
+            onChange={(e) => setAgreedToTerms(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            I agree to the{' '}
+            <Link to="/terms" target="_blank" className="text-coral hover:underline">Terms of Use</Link>
+            {' '}and{' '}
+            <Link to="/privacy" target="_blank" className="text-coral hover:underline">Privacy Policy</Link>.
+          </span>
+        </label>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !agreedToTerms}
           className="w-full bg-coral text-white py-3 rounded-lg font-space font-semibold hover:bg-coral-dark transition flex items-center justify-center disabled:opacity-50"
         >
           {loading ? (

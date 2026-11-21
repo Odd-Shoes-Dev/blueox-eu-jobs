@@ -7,6 +7,8 @@ import Home from './pages/Home';
 import About from './pages/About';
 import Jobs from './pages/Jobs';
 import Contact from './pages/Contact';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 import Login from './pages/Login';
 import Portal from './pages/Portal';
 import Admin from './pages/Admin';
@@ -24,9 +26,13 @@ function AppContent() {
   const isHomePage = location.pathname === '/';
   // The Partner Portal is a different audience with its own layout/header
   // (PartnerLayout) — hide the regular client-facing Header/Footer there.
-  // The homepage now uses the same Header as every other page; it only
-  // keeps its own full-viewport layout (no shared Footer) for its chat UI.
+  // The homepage now uses the same Header and Footer as every other page for
+  // its hero/marketing scroll state; once the chatbot conversation starts
+  // (?chat=1) it switches to a fixed-viewport "app" layout with its own
+  // internal scrolling, where a page-level Footer below it would just add
+  // unwanted whole-page scroll to reach something unrelated to the chat.
   const isPartnerPortal = location.pathname.startsWith('/partner-portal');
+  const isHomeChatActive = isHomePage && new URLSearchParams(location.search).get('chat') === '1';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -38,6 +44,8 @@ function AppContent() {
           <Route path="/about" element={<About />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/login" element={<Login />} />
           <Route path="/apply/:type" element={<Portal />} />
           <Route path="/admin" element={<Admin />} />
@@ -52,7 +60,7 @@ function AppContent() {
           </Route>
         </Routes>
       </main>
-      {!isHomePage && !isPartnerPortal && <Footer />}
+      {!isPartnerPortal && !isHomeChatActive && <Footer />}
     </div>
   );
 }
