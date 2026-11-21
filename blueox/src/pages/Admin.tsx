@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
-import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, MessageSquare, Eye, ChevronDown, ChevronUp, Building2, ExternalLink } from 'lucide-react';
+import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, MessageSquare, Eye, ChevronDown, ChevronUp, Building2, ExternalLink, MoreVertical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileKind } from '../lib/fileKind';
 import type { Client, Application, Document as DocType, Payment, Job } from '../services/types';
@@ -32,7 +33,18 @@ const Admin: React.FC = () => {
   const [payments, setPayments] = useState<(Payment & { client?: Client })[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [partners, setPartners] = useState<AdminPartner[]>([]);
-  const [expandedPartner, setExpandedPartner] = useState<string | null>(null);
+  // Drill-down: Partners list -> one partner's candidates -> one candidate's
+  // full data, each its own screen rather than an inline-expanding accordion
+  // (which got confusing and hard to navigate once a partner had many
+  // candidates — see the "partners drill-down" discussion).
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  // Rendered through a portal (see below) — the row it belongs to sits inside
+  // overflow-x-auto/overflow-hidden ancestors (for the mobile scroll fix and
+  // rounded corners), which would otherwise clip the dropdown instead of
+  // letting it float above the page. Position is the button's own screen
+  // coordinates, captured when it's clicked.
+  const [partnerMenu, setPartnerMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   // Loaded on demand per partner (not part of the initial dashboard fetch) —
   // read-only, so the admin can see what a partner submitted; see
   // clients.ts's partner-candidates admin branch.
@@ -95,12 +107,9 @@ const Admin: React.FC = () => {
     fetchAllData();
   };
 
-  const togglePartnerExpanded = async (partnerId: string) => {
-    if (expandedPartner === partnerId) {
-      setExpandedPartner(null);
-      return;
-    }
-    setExpandedPartner(partnerId);
+  const selectPartner = async (partnerId: string) => {
+    setSelectedPartnerId(partnerId);
+    setSelectedCandidateId(null);
     if (!partnerCandidates[partnerId]) {
       setLoadingPartnerCandidates(partnerId);
       const candidates = await adminService.getPartnerCandidates(partnerId);
@@ -713,125 +722,227 @@ const Admin: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'partners' && (
-              <div className="space-y-4">
-                {partners.map((partner) => {
-                  const isExpanded = expandedPartner === partner.id;
-                  const candidates = partnerCandidates[partner.id];
-                  return (
-                    <div key={partner.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                      <div
-                        className="p-4 cursor-pointer hover:bg-gray-50 transition overflow-x-auto"
-                        onClick={() => togglePartnerExpanded(partner.id)}
-                      >
-                        <div className="flex items-center justify-between gap-4 min-w-max">
-                          <div className="flex items-center gap-4 flex-shrink-0">
-                            <div className="w-10 h-10 bg-coral/10 rounded-full flex items-center justify-center">
-                              <Building2 className="w-5 h-5 text-coral" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-navy whitespace-nowrap">{partner.company_name}</h3>
-                              <p className="text-sm text-gray-500 whitespace-nowrap">
-                                {partner.contact_person_name} — {partner.contact_email}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full whitespace-nowrap">
-                              {partner.candidate_count} candidate{partner.candidate_count === 1 ? '' : 's'}
-                            </span>
-                            {getStatusBadge(partner.registration_status)}
-                            {partner.registration_status !== 'approved' && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setPartnerStatus(partner.id, 'approved'); }}
-                                className="text-sm text-green-600 hover:text-green-800"
-                              >
-                                Approve
-                              </button>
-                            )}
-                            {partner.registration_status !== 'suspended' && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setPartnerStatus(partner.id, 'suspended'); }}
-                                className="text-sm text-red-600 hover:text-red-800"
-                              >
-                                Suspend
-                              </button>
-                            )}
-                            {isExpanded ? (
-                              <ChevronUp className="w-5 h-5 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="w-5 h-5 text-gray-400" />
-                            )}
-                          </div>
-                        </div>
-                      </div>
+            {activeTab === 'partners' && (() => {
+              const selectedPartner = partners.find((p) => p.id === selectedPartnerId);
 
-                      {isExpanded && (
-                        <div className="border-t px-4 pb-4">
-                          <h4 className="font-semibold text-navy mt-4 mb-2">Submitted Candidates</h4>
-                          {loadingPartnerCandidates === partner.id ? (
-                            <div className="text-center py-6">
-                              <div className="animate-spin w-6 h-6 border-4 border-coral border-t-transparent rounded-full mx-auto"></div>
-                            </div>
-                          ) : !candidates || candidates.length === 0 ? (
-                            <p className="text-sm text-gray-500">No candidates submitted yet.</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {candidates.map((cand) => {
-                                const candDocs = documents.filter((d) => d.partner_candidate_id === cand.id);
-                                return (
-                                  <div key={cand.id} className="bg-gray-50 rounded-lg p-3 overflow-x-auto">
-                                    <div className="flex items-center justify-between gap-4 min-w-max">
-                                      <div>
-                                        <p className="font-medium text-navy whitespace-nowrap">{cand.full_name || 'Not yet filled in'}</p>
-                                        <p className="text-xs text-gray-500 whitespace-nowrap">
-                                          {cand.nationality || '—'} → {cand.target_country || '—'} · {cand.job_category || '—'}
-                                        </p>
-                                      </div>
-                                      <div className="flex items-center gap-2 flex-shrink-0">
-                                        {getStatusBadge(cand.status)}
-                                        {cand.video_url && (
-                                          <a
-                                            href={cand.video_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-coral hover:underline text-xs flex items-center gap-1 whitespace-nowrap"
-                                          >
-                                            Video <ExternalLink className="w-3 h-3" />
-                                          </a>
-                                        )}
-                                      </div>
-                                    </div>
-                                    {candDocs.length > 0 && (
-                                      <div className="mt-2 flex flex-wrap gap-2">
-                                        {candDocs.map((doc) => (
-                                          <button
-                                            key={doc.id}
-                                            onClick={() => runWithLoading(`preview-cand-doc-${doc.id}`, () => previewDocument(doc.file_path, doc.file_name))}
-                                            disabled={isLoading(`preview-cand-doc-${doc.id}`)}
-                                            className="text-xs bg-white border rounded px-2 py-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 whitespace-nowrap"
-                                          >
-                                            {doc.document_type}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+              // Screen 3: one candidate's full data.
+              if (selectedPartner && selectedCandidateId) {
+                const cand = (partnerCandidates[selectedPartner.id] || []).find((c) => c.id === selectedCandidateId);
+                if (!cand) return null;
+                const candDocs = documents.filter((d) => d.partner_candidate_id === cand.id);
+                const DETAIL_FIELDS: { label: string; value: React.ReactNode }[] = [
+                  { label: 'Full name', value: cand.full_name || '—' },
+                  { label: 'Date of birth', value: cand.date_of_birth || '—' },
+                  { label: 'Nationality', value: cand.nationality || '—' },
+                  { label: 'Phone', value: cand.phone || '—' },
+                  { label: 'Email', value: cand.email || '—' },
+                  { label: 'Country of residence', value: cand.country_of_residence || '—' },
+                  { label: 'EU citizenship', value: cand.eu_citizenship === null ? '—' : cand.eu_citizenship ? 'Yes' : 'No' },
+                  { label: 'Target country', value: cand.target_country || '—' },
+                  { label: 'Job category', value: cand.job_category || '—' },
+                  { label: 'Driving licence', value: cand.driving_licence === null ? '—' : cand.driving_licence ? 'Yes' : 'No' },
+                  { label: 'Driving licence conversion', value: cand.driving_licence_conversion_status || '—' },
+                  {
+                    label: 'Skills video',
+                    value: cand.video_url ? (
+                      <a href={cand.video_url} target="_blank" rel="noopener noreferrer" className="text-coral hover:underline inline-flex items-center gap-1">
+                        Open link <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : '—',
+                  },
+                  { label: 'Placement status', value: cand.placement_status },
+                  { label: 'Created', value: new Date(cand.created_at).toLocaleString() },
+                  { label: 'Last updated', value: new Date(cand.updated_at).toLocaleString() },
+                ];
+                return (
+                  <div>
+                    <button onClick={() => setSelectedCandidateId(null)} className="text-sm text-gray-500 hover:text-coral mb-4">
+                      ← Back to {selectedPartner.company_name}'s candidates
+                    </button>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-orbitron text-xl font-bold text-navy">{cand.full_name || 'Not yet filled in'}</h3>
+                      {getStatusBadge(cand.status)}
+                    </div>
+                    {cand.status === 'changes_requested' && cand.changes_requested_note && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-sm text-amber-800">
+                        <strong>Changes requested:</strong> {cand.changes_requested_note}
+                      </div>
+                    )}
+                    <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        {DETAIL_FIELDS.map((f) => (
+                          <div key={f.label}>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">{f.label}</p>
+                            <p className="text-sm text-navy mt-0.5">{f.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border p-6">
+                      <h4 className="font-semibold text-navy mb-3">Documents</h4>
+                      {candDocs.length === 0 ? (
+                        <p className="text-sm text-gray-500">No documents uploaded yet.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {candDocs.map((doc) => (
+                            <button
+                              key={doc.id}
+                              onClick={() => runWithLoading(`preview-cand-doc-${doc.id}`, () => previewDocument(doc.file_path, doc.file_name))}
+                              disabled={isLoading(`preview-cand-doc-${doc.id}`)}
+                              className="text-sm bg-gray-50 border rounded-lg px-3 py-2 text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                            >
+                              {doc.document_type}
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
-                  );
-                })}
-                {partners.length === 0 && <p className="text-center py-8 text-gray-500">No partners yet.</p>}
-              </div>
-            )}
+                  </div>
+                );
+              }
+
+              // Screen 2: one partner's submitted candidates. Drafts are left
+              // out — a candidate the partner/candidate hasn't finished
+              // filling in yet isn't ready for admin to act on.
+              if (selectedPartner) {
+                const candidates = partnerCandidates[selectedPartner.id]?.filter((c) => c.status !== 'draft');
+                return (
+                  <div>
+                    <button onClick={() => setSelectedPartnerId(null)} className="text-sm text-gray-500 hover:text-coral mb-4">
+                      ← Back to Partners
+                    </button>
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-orbitron text-xl font-bold text-navy">{selectedPartner.company_name}</h3>
+                      {getStatusBadge(selectedPartner.registration_status)}
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">
+                      {selectedPartner.contact_person_name} — {selectedPartner.contact_email}
+                    </p>
+                    <h4 className="font-semibold text-navy mb-2">Submitted Candidates</h4>
+                    {loadingPartnerCandidates === selectedPartner.id ? (
+                      <div className="text-center py-6">
+                        <div className="animate-spin w-6 h-6 border-4 border-coral border-t-transparent rounded-full mx-auto"></div>
+                      </div>
+                    ) : !candidates || candidates.length === 0 ? (
+                      <p className="text-sm text-gray-500">No candidates submitted yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {candidates.map((cand) => (
+                          <button
+                            key={cand.id}
+                            onClick={() => setSelectedCandidateId(cand.id)}
+                            className="w-full text-left bg-white border rounded-lg p-3 hover:bg-gray-50 transition overflow-x-auto"
+                          >
+                            <div className="flex items-center justify-between gap-4 min-w-max">
+                              <div>
+                                <p className="font-medium text-navy whitespace-nowrap">{cand.full_name || 'Not yet filled in'}</p>
+                                <p className="text-xs text-gray-500 whitespace-nowrap">
+                                  {cand.nationality || '—'} → {cand.target_country || '—'} · {cand.job_category || '—'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {getStatusBadge(cand.status)}
+                                <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90" />
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Screen 1: every partner.
+              return (
+                <div className="space-y-4">
+                  {partners.map((partner) => (
+                    <button
+                      key={partner.id}
+                      onClick={() => selectPartner(partner.id)}
+                      className="w-full text-left bg-white rounded-xl shadow-sm border p-4 hover:bg-gray-50 transition overflow-x-auto"
+                    >
+                      <div className="flex items-center justify-between gap-4 min-w-max">
+                        <div className="flex items-center gap-4 flex-shrink-0">
+                          <div className="w-10 h-10 bg-coral/10 rounded-full flex items-center justify-center">
+                            <Building2 className="w-5 h-5 text-coral" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-navy whitespace-nowrap">{partner.company_name}</h3>
+                            <p className="text-sm text-gray-500 whitespace-nowrap">
+                              {partner.contact_person_name} — {partner.contact_email}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full whitespace-nowrap">
+                            {partner.candidate_count} submitted
+                          </span>
+                          {getStatusBadge(partner.registration_status)}
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (partnerMenu?.id === partner.id) {
+                                setPartnerMenu(null);
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setPartnerMenu({ id: partner.id, top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                            }}
+                            className="p-1 rounded hover:bg-gray-200 text-gray-500"
+                          >
+                            <MoreVertical className="w-5 h-5" />
+                          </span>
+                          <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90" />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  {partners.length === 0 && <p className="text-center py-8 text-gray-500">No partners yet.</p>}
+                </div>
+              );
+            })()}
           </>
         )}
       </div>
+
+      {partnerMenu && createPortal(
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setPartnerMenu(null)} />
+          <div
+            className="fixed w-40 bg-white rounded-lg shadow-lg border py-1 z-50"
+            style={{ top: partnerMenu.top, right: partnerMenu.right }}
+          >
+            {(() => {
+              const partner = partners.find((p) => p.id === partnerMenu.id);
+              if (!partner) return null;
+              return (
+                <>
+                  {partner.registration_status !== 'approved' && (
+                    <button
+                      onClick={() => { setPartnerStatus(partner.id, 'approved'); setPartnerMenu(null); }}
+                      className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-gray-50"
+                    >
+                      Approve
+                    </button>
+                  )}
+                  {partner.registration_status !== 'suspended' && (
+                    <button
+                      onClick={() => { setPartnerStatus(partner.id, 'suspended'); setPartnerMenu(null); }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
+                    >
+                      Suspend
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </>,
+        document.body
+      )}
 
       {showModal === 'payment' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
