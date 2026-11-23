@@ -8,6 +8,8 @@ import { getCompletionPercent } from '../../services/partnerCandidatesService';
 import { formatCandidateRef } from '../../services/partnerCandidatesService';
 import { usePartnerAuth } from '../../contexts/PartnerAuthContext';
 import CompletionBar from '../../components/CompletionBar';
+import { filterBySearch } from '../../lib/search';
+import SearchInput from '../../components/SearchInput';
 
 const STATUS_LABEL: Record<PartnerCandidate['status'], string> = {
   draft: 'Draft',
@@ -40,6 +42,7 @@ const Dashboard: React.FC = () => {
   // (a purely visual guide, see getCompletionPercent) — fetched once for all
   // of this partner's candidates rather than per row.
   const [docCounts, setDocCounts] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState('');
 
   const fetchCandidates = async () => {
     setLoading(true);
@@ -116,6 +119,11 @@ const Dashboard: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const filteredCandidates = filterBySearch(candidates, search, (c) => [
+    c.full_name, c.target_country, c.job_category,
+    partner?.code ? formatCandidateRef(partner.code, c.candidate_number) : null,
+  ]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -173,6 +181,15 @@ const Dashboard: React.FC = () => {
           No candidates yet. Click "Add Candidate" to create your first one.
         </div>
       ) : (
+        <>
+          <div className="mb-4 flex items-center gap-4">
+            <SearchInput value={search} onChange={setSearch} placeholder="Search candidates..." />
+          </div>
+          {filteredCandidates.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-500">
+              No candidates match your search.
+            </div>
+          ) : (
         <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-gray-50 text-left text-gray-500">
@@ -187,7 +204,7 @@ const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {candidates.map((c) => (
+              {filteredCandidates.map((c) => (
                 <tr
                   key={c.id}
                   onClick={() => navigate(`/partner-portal/candidates/${c.id}`)}
@@ -234,6 +251,8 @@ const Dashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
+          )}
+        </>
       )}
 
       {candidateMenu && createPortal(
