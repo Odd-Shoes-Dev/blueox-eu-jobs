@@ -60,7 +60,7 @@ const Portal: React.FC = () => {
 
     const file = e.target.files[0];
     const sanitizedName = client.full_name.replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `${sanitizedName}_${docType}.${file.name.split('.').pop()}`;
+    const fileName = `${sanitizedName}_${docType}.${storageService.getSafeExtension(file.name)}`;
     const filePath = `${user.id}/${fileName}`;
 
     setUploading(true);

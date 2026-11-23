@@ -5,12 +5,49 @@ import { getAuthedClient, getAuthedPartner, getCandidateByAccessToken } from '..
 import { generateToken } from '../lib/password';
 
 const EDITABLE_FIELDS = [
-  'full_name', 'date_of_birth', 'nationality', 'phone', 'email',
-  'country_of_residence', 'eu_citizenship', 'target_country', 'job_category',
-  'driving_licence', 'driving_licence_conversion_status', 'video_url',
+  'full_name', 'gender', 'date_of_birth', 'nationality', 'country_of_birth', 'place_of_birth',
+  'marital_status', 'father_name', 'mother_name', 'phone', 'email',
+  'country_of_residence', 'residence_city', 'residence_municipality', 'residence_street',
+  'residence_house_number', 'eu_citizenship', 'passport_number', 'passport_place_of_issue',
+  'passport_issue_date', 'passport_expiry_date', 'highest_education', 'work_experience',
+  'travel_visa_history', 'target_country', 'job_category',
+  'driving_licence', 'driving_licence_conversion_status', 'intro_video_url', 'video_url',
 ] as const;
 
+
 const REQUIRED_TO_SUBMIT = ['full_name', 'date_of_birth', 'nationality', 'email'] as const;
+
+// Mirrors the maxLength values on CANDIDATE_FIELDS in
+// blueox/src/services/partnerCandidatesService.ts — keep both in sync. The
+// frontend's maxLength is only a client-side HTML attribute, so this is the
+// real enforcement; a value over its limit is silently truncated rather than
+// rejected, since this is a data-quality guard, not a validation rule the
+// user needs to be told about.
+const MAX_LENGTHS: Partial<Record<typeof EDITABLE_FIELDS[number], number>> = {
+  full_name: 200,
+  father_name: 200,
+  mother_name: 200,
+  nationality: 150,
+  country_of_birth: 150,
+  place_of_birth: 150,
+  phone: 30,
+  email: 150,
+  country_of_residence: 150,
+  residence_city: 150,
+  residence_municipality: 150,
+  residence_street: 150,
+  residence_house_number: 50,
+  passport_number: 50,
+  passport_place_of_issue: 150,
+  highest_education: 150,
+  work_experience: 2000,
+  travel_visa_history: 2000,
+  target_country: 150,
+  job_category: 150,
+  driving_licence_conversion_status: 150,
+  intro_video_url: 500,
+  video_url: 500,
+};
 
 // `date_of_birth` is a plain DATE column — every query below casts it to
 // text (`date_of_birth::text`) so it comes back as a plain 'YYYY-MM-DD'
@@ -64,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
       const rows = await sql`
         SELECT id, company_name, contact_person_name, contact_email, contact_phone, email,
-               registration_status, registration_number, tax_id, business_activity_notes,
+               registration_status, code, registration_number, tax_id, business_activity_notes,
                billing_contact_name, billing_email, billing_address, invoicing_enabled,
                created_at, updated_at
         FROM partners WHERE id = ${id}
@@ -109,10 +146,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const partnerId = authedPartner ? authedPartner.id : (req.query.partner_id as string | undefined);
       if (!partnerId) return res.status(400).json({ error: 'partner_id is required' });
       const rows = await sql`
-        SELECT id, partner_id, access_token, status, changes_requested_note,
-               full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-               country_of_residence, eu_citizenship, target_country, job_category,
-               driving_licence, driving_licence_conversion_status, video_url,
+        SELECT id, partner_id, access_token, status, changes_requested_note, candidate_number,
+               full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+               country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+               phone, email,
+               country_of_residence, residence_city, residence_municipality, residence_street,
+               residence_house_number, eu_citizenship,
+               passport_number, passport_place_of_issue,
+               passport_issue_date::text AS passport_issue_date,
+               passport_expiry_date::text AS passport_expiry_date,
+               highest_education, work_experience, travel_visa_history,
+               target_country, job_category,
+               driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
                placement_status, placed_job_id, placed_at, created_at, updated_at
         FROM partner_candidates WHERE partner_id = ${partnerId} ORDER BY created_at DESC
       `;
@@ -122,13 +167,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'POST') {
       if (!authedPartner) return res.status(403).json({ error: 'Forbidden' });
       const accessToken = generateToken();
+      // Atomically claim the next candidate number under this partner — the
+      // row lock an UPDATE takes makes this race-free against concurrent
+      // creates without needing an explicit transaction.
+      const [{ candidate_counter }] = await sql`
+        UPDATE partners SET candidate_counter = candidate_counter + 1
+        WHERE id = ${authedPartner.id}
+        RETURNING candidate_counter
+      `;
       const rows = await sql`
-        INSERT INTO partner_candidates (partner_id, access_token)
-        VALUES (${authedPartner.id}, ${accessToken})
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
-          full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-          country_of_residence, eu_citizenship, target_country, job_category,
-          driving_licence, driving_licence_conversion_status, video_url,
+        INSERT INTO partner_candidates (partner_id, access_token, candidate_number)
+        VALUES (${authedPartner.id}, ${accessToken}, ${candidate_counter})
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
+          full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+          country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+          phone, email,
+          country_of_residence, residence_city, residence_municipality, residence_street,
+          residence_house_number, eu_citizenship,
+          passport_number, passport_place_of_issue,
+          passport_issue_date::text AS passport_issue_date,
+          passport_expiry_date::text AS passport_expiry_date,
+          highest_education, work_experience, travel_visa_history,
+          target_country, job_category,
+          driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
           placement_status, placed_job_id, placed_at, created_at, updated_at
       `;
       return res.status(201).json(rows[0]);
@@ -144,10 +205,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else {
     if (!id) return res.status(400).json({ error: 'id is required' });
     const rows = await sql`
-      SELECT id, partner_id, access_token, status, changes_requested_note,
-             full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-             country_of_residence, eu_citizenship, target_country, job_category,
-             driving_licence, driving_licence_conversion_status, video_url,
+      SELECT id, partner_id, access_token, status, changes_requested_note, candidate_number,
+             full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+             country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+             phone, email,
+             country_of_residence, residence_city, residence_municipality, residence_street,
+             residence_house_number, eu_citizenship,
+             passport_number, passport_place_of_issue,
+             passport_issue_date::text AS passport_issue_date,
+             passport_expiry_date::text AS passport_expiry_date,
+             highest_education, work_experience, travel_visa_history,
+             target_country, job_category,
+             driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
              placement_status, placed_job_id, placed_at, created_at, updated_at
       FROM partner_candidates WHERE id = ${id}
     `;
@@ -186,10 +255,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updated = await sql`
         UPDATE partner_candidates SET status = 'locked', updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
-          full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-          country_of_residence, eu_citizenship, target_country, job_category,
-          driving_licence, driving_licence_conversion_status, video_url,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
+          full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+          country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+          phone, email,
+          country_of_residence, residence_city, residence_municipality, residence_street,
+          residence_house_number, eu_citizenship,
+          passport_number, passport_place_of_issue,
+          passport_issue_date::text AS passport_issue_date,
+          passport_expiry_date::text AS passport_expiry_date,
+          highest_education, work_experience, travel_visa_history,
+          target_country, job_category,
+          driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
           placement_status, placed_job_id, placed_at, created_at, updated_at
       `;
       return res.status(200).json(updated[0]);
@@ -203,10 +280,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         UPDATE partner_candidates
         SET status = 'changes_requested', changes_requested_note = ${note}, updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
-          full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-          country_of_residence, eu_citizenship, target_country, job_category,
-          driving_licence, driving_licence_conversion_status, video_url,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
+          full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+          country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+          phone, email,
+          country_of_residence, residence_city, residence_municipality, residence_street,
+          residence_house_number, eu_citizenship,
+          passport_number, passport_place_of_issue,
+          passport_issue_date::text AS passport_issue_date,
+          passport_expiry_date::text AS passport_expiry_date,
+          highest_education, work_experience, travel_visa_history,
+          target_country, job_category,
+          driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
           placement_status, placed_job_id, placed_at, created_at, updated_at
       `;
       return res.status(200).json(updated[0]);
@@ -225,10 +310,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updated = await sql`
         UPDATE partner_candidates SET status = 'submitted', updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
-          full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-          country_of_residence, eu_citizenship, target_country, job_category,
-          driving_licence, driving_licence_conversion_status, video_url,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
+          full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+          country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+          phone, email,
+          country_of_residence, residence_city, residence_municipality, residence_street,
+          residence_house_number, eu_citizenship,
+          passport_number, passport_place_of_issue,
+          passport_issue_date::text AS passport_issue_date,
+          passport_expiry_date::text AS passport_expiry_date,
+          highest_education, work_experience, travel_visa_history,
+          target_country, job_category,
+          driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
           placement_status, placed_job_id, placed_at, created_at, updated_at
       `;
       return res.status(200).json(updated[0]);
@@ -244,10 +337,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updated = await sql`
         UPDATE partner_candidates SET status = 'draft', changes_requested_note = NULL, updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
-          full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-          country_of_residence, eu_citizenship, target_country, job_category,
-          driving_licence, driving_licence_conversion_status, video_url,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
+          full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+          country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+          phone, email,
+          country_of_residence, residence_city, residence_municipality, residence_street,
+          residence_house_number, eu_citizenship,
+          passport_number, passport_place_of_issue,
+          passport_issue_date::text AS passport_issue_date,
+          passport_expiry_date::text AS passport_expiry_date,
+          highest_education, work_experience, travel_visa_history,
+          target_country, job_category,
+          driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
           placement_status, placed_job_id, placed_at, created_at, updated_at
       `;
       return res.status(200).json(updated[0]);
@@ -263,31 +364,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const b = (req.body ?? {}) as Record<string, unknown>;
-    const values = Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, b[f] ?? row![f]]));
+    const values = Object.fromEntries(EDITABLE_FIELDS.map((f) => {
+      let v = b[f] ?? row![f];
+      const max = MAX_LENGTHS[f];
+      if (max && typeof v === 'string') v = v.slice(0, max);
+      return [f, v];
+    }));
     const reopening = candidate && row.status === 'changes_requested';
 
     const updated = await sql`
       UPDATE partner_candidates SET
         full_name = ${values.full_name as string | null},
+        gender = ${values.gender as string | null},
         date_of_birth = ${values.date_of_birth as string | null},
         nationality = ${values.nationality as string | null},
+        country_of_birth = ${values.country_of_birth as string | null},
+        place_of_birth = ${values.place_of_birth as string | null},
+        marital_status = ${values.marital_status as string | null},
+        father_name = ${values.father_name as string | null},
+        mother_name = ${values.mother_name as string | null},
         phone = ${values.phone as string | null},
         email = ${values.email as string | null},
         country_of_residence = ${values.country_of_residence as string | null},
+        residence_city = ${values.residence_city as string | null},
+        residence_municipality = ${values.residence_municipality as string | null},
+        residence_street = ${values.residence_street as string | null},
+        residence_house_number = ${values.residence_house_number as string | null},
         eu_citizenship = ${values.eu_citizenship as boolean | null},
+        passport_number = ${values.passport_number as string | null},
+        passport_place_of_issue = ${values.passport_place_of_issue as string | null},
+        passport_issue_date = ${values.passport_issue_date as string | null},
+        passport_expiry_date = ${values.passport_expiry_date as string | null},
+        highest_education = ${values.highest_education as string | null},
+        work_experience = ${values.work_experience as string | null},
+        travel_visa_history = ${values.travel_visa_history as string | null},
         target_country = ${values.target_country as string | null},
         job_category = ${values.job_category as string | null},
         driving_licence = ${values.driving_licence as boolean | null},
         driving_licence_conversion_status = ${values.driving_licence_conversion_status as string | null},
+        intro_video_url = ${values.intro_video_url as string | null},
         video_url = ${values.video_url as string | null},
         status = ${reopening ? 'draft' : row.status as string},
         changes_requested_note = ${reopening ? null : row.changes_requested_note as string | null},
         updated_at = now()
       WHERE id = ${targetId}
-      RETURNING id, partner_id, access_token, status, changes_requested_note,
-        full_name, date_of_birth::text AS date_of_birth, nationality, phone, email,
-        country_of_residence, eu_citizenship, target_country, job_category,
-        driving_licence, driving_licence_conversion_status, video_url,
+      RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
+        full_name, gender, date_of_birth::text AS date_of_birth, nationality,
+        country_of_birth, place_of_birth, marital_status, father_name, mother_name,
+        phone, email,
+        country_of_residence, residence_city, residence_municipality, residence_street,
+        residence_house_number, eu_citizenship,
+        passport_number, passport_place_of_issue,
+        passport_issue_date::text AS passport_issue_date,
+        passport_expiry_date::text AS passport_expiry_date,
+        highest_education, work_experience, travel_visa_history,
+        target_country, job_category,
+        driving_licence, driving_licence_conversion_status, intro_video_url, video_url,
         placement_status, placed_job_id, placed_at, created_at, updated_at
     `;
     return res.status(200).json(updated[0]);

@@ -14,6 +14,10 @@ export interface Partner {
   contact_phone?: string;
   email: string;
   registration_status: string;
+  // Sequential, content-free 3-letter code (AAA, AAB, ...) assigned once at
+  // signup — a partner who signed up before this field existed won't have it
+  // in their cached localStorage copy until their next login.
+  code: string;
 }
 
 export async function getToken(): Promise<string | null> {

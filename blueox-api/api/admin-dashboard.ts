@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // finished filling in yet isn't something admin needs visibility into; see
     // the matching `status !== 'draft'` filter on the frontend's candidate list.
     sql`SELECT id, company_name, contact_person_name, contact_email, contact_phone,
-               registration_status, created_at,
+               registration_status, code, created_at,
                (SELECT count(*) FROM partner_candidates pc WHERE pc.partner_id = partners.id AND pc.status != 'draft') AS candidate_count
         FROM partners ORDER BY created_at DESC`,
   ]);

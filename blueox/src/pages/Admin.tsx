@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
-import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, Search, MessageSquare, Eye, ChevronDown, ChevronUp, Building2, ExternalLink, MoreVertical } from 'lucide-react';
+import { Users, FileText, CreditCard, Briefcase, CheckCircle, Clock, Download, Plus, X, MessageSquare, Eye, ChevronDown, ChevronUp, Building2, ExternalLink, MoreVertical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileKind } from '../lib/fileKind';
 import type { Client, Application, Document as DocType, Payment, Job } from '../services/types';
@@ -13,7 +13,10 @@ import * as storageService from '../services/storageService';
 import * as adminService from '../services/adminService';
 import type { AdminPartner } from '../services/adminService';
 import type { PartnerCandidate } from '../services/partnerCandidatesService';
+import { CANDIDATE_DOC_TYPE_LABELS, formatCandidateRef } from '../services/partnerCandidatesService';
 import { useHeaderHidden } from '../hooks/useHeaderHidden';
+import { filterBySearch } from '../lib/search';
+import SearchInput from '../components/SearchInput';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs' | 'partners';
 
@@ -51,7 +54,16 @@ const Admin: React.FC = () => {
   const [partnerCandidates, setPartnerCandidates] = useState<Record<string, PartnerCandidate[]>>({});
   const [loadingPartnerCandidates, setLoadingPartnerCandidates] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Each list keeps its own search term — previously a single shared
+  // `searchTerm` leaked between tabs (typing in Applications left the same
+  // text pre-filled and still filtering when you switched to Clients).
+  const [applicationSearch, setApplicationSearch] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [documentSearch, setDocumentSearch] = useState('');
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [jobSearch, setJobSearch] = useState('');
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [partnerCandidateSearch, setPartnerCandidateSearch] = useState('');
   const [showModal, setShowModal] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
@@ -110,6 +122,7 @@ const Admin: React.FC = () => {
   const selectPartner = async (partnerId: string) => {
     setSelectedPartnerId(partnerId);
     setSelectedCandidateId(null);
+    setPartnerCandidateSearch('');
     if (!partnerCandidates[partnerId]) {
       setLoadingPartnerCandidates(partnerId);
       const candidates = await adminService.getPartnerCandidates(partnerId);
@@ -289,16 +302,25 @@ const Admin: React.FC = () => {
     { id: 'partners', label: 'Partners', icon: Building2, count: partners.length },
   ];
 
-  const filteredClients = clients.filter(c => 
-    c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredClients = filterBySearch(clients, clientSearch, (c) => [c.full_name, c.email]);
 
-  const filteredApplications = applications.filter(a => 
-    a.client?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.client?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.user_path?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredApplications = filterBySearch(applications, applicationSearch, (a) => [
+    a.client?.full_name, a.client?.email, a.user_path,
+  ]);
+
+  const filteredDocuments = filterBySearch(documents, documentSearch, (d) => [
+    d.client?.full_name, d.file_name, d.document_type,
+  ]);
+
+  const filteredPayments = filterBySearch(payments, paymentSearch, (p) => [
+    p.client?.full_name, String(p.phase), p.status,
+  ]);
+
+  const filteredJobs = filterBySearch(jobs, jobSearch, (j) => [j.title, j.company, j.location, j.country]);
+
+  const filteredPartners = filterBySearch(partners, partnerSearch, (p) => [
+    p.company_name, p.code, p.contact_person_name, p.contact_email,
+  ]);
 
   return (
     <div className="font-inter pt-20 min-h-screen bg-gray-50">
@@ -349,18 +371,9 @@ const Admin: React.FC = () => {
             {activeTab === 'applications' && (
               <div>
                 <div className="mb-4 flex items-center gap-4">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search applications..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent"
-                    />
-                  </div>
+                  <SearchInput value={applicationSearch} onChange={setApplicationSearch} placeholder="Search applications..." />
                 </div>
-                
+
                 <div className="space-y-4">
                   {filteredApplications.map((app) => (
                     <div key={app.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -522,16 +535,7 @@ const Admin: React.FC = () => {
             {activeTab === 'clients' && (
               <div>
                 <div className="mb-4 flex items-center">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search clients..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent"
-                    />
-                  </div>
+                  <SearchInput value={clientSearch} onChange={setClientSearch} placeholder="Search clients..." />
                 </div>
                 <div className="bg-white rounded-xl overflow-x-auto shadow-sm">
                   <table className="w-full min-w-[600px]">
@@ -559,6 +563,10 @@ const Admin: React.FC = () => {
             )}
 
             {activeTab === 'documents' && (
+              <div>
+                <div className="mb-4 flex items-center gap-4">
+                  <SearchInput value={documentSearch} onChange={setDocumentSearch} placeholder="Search documents..." />
+                </div>
               <div className="bg-white rounded-xl overflow-x-auto shadow-sm">
                 <table className="w-full min-w-[700px]">
                   <thead className="bg-gray-50">
@@ -571,7 +579,7 @@ const Admin: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {documents.map((doc) => (
+                    {filteredDocuments.map((doc) => (
                       <tr key={doc.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium text-navy whitespace-nowrap">{doc.client?.full_name || 'Unknown'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{doc.file_name}</td>
@@ -624,7 +632,8 @@ const Admin: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-                {documents.length === 0 && <p className="text-center py-8 text-gray-500">No documents uploaded yet.</p>}
+                {filteredDocuments.length === 0 && <p className="text-center py-8 text-gray-500">No documents uploaded yet.</p>}
+              </div>
               </div>
             )}
 
@@ -638,6 +647,9 @@ const Admin: React.FC = () => {
                     <Plus className="w-4 h-4 mr-2" /> Add Payment
                   </button>
                 </div>
+                <div className="mb-4 flex items-center gap-4">
+                  <SearchInput value={paymentSearch} onChange={setPaymentSearch} placeholder="Search payments..." />
+                </div>
                 <div className="bg-white rounded-xl overflow-x-auto shadow-sm">
                   <table className="w-full min-w-[700px]">
                     <thead className="bg-gray-50">
@@ -650,7 +662,7 @@ const Admin: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {payments.map((payment) => (
+                      {filteredPayments.map((payment) => (
                         <tr key={payment.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 font-medium text-navy whitespace-nowrap">{payment.client?.full_name || 'Unknown'}</td>
                           <td className="px-4 py-3">
@@ -673,7 +685,7 @@ const Admin: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
-                  {payments.length === 0 && <p className="text-center py-8 text-gray-500">No payments recorded yet.</p>}
+                  {filteredPayments.length === 0 && <p className="text-center py-8 text-gray-500">No payments recorded yet.</p>}
                 </div>
               </div>
             )}
@@ -688,8 +700,11 @@ const Admin: React.FC = () => {
                     <Plus className="w-4 h-4 mr-2" /> Add Job
                   </button>
                 </div>
+                <div className="mb-4 flex items-center gap-4">
+                  <SearchInput value={jobSearch} onChange={setJobSearch} placeholder="Search jobs..." />
+                </div>
                 <div className="grid md:grid-cols-2 gap-4">
-                  {jobs.map((job) => (
+                  {filteredJobs.map((job) => (
                     <div key={job.id} className="bg-white rounded-xl p-4 shadow-sm">
                       <div className="flex justify-between items-start mb-2">
                         <div>
@@ -718,7 +733,7 @@ const Admin: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                {jobs.length === 0 && <p className="text-center py-8 text-gray-500">No jobs posted yet.</p>}
+                {filteredJobs.length === 0 && <p className="text-center py-8 text-gray-500">No jobs posted yet.</p>}
               </div>
             )}
 
@@ -730,26 +745,42 @@ const Admin: React.FC = () => {
                 const cand = (partnerCandidates[selectedPartner.id] || []).find((c) => c.id === selectedCandidateId);
                 if (!cand) return null;
                 const candDocs = documents.filter((d) => d.partner_candidate_id === cand.id);
+                const videoLink = (url: string | null) => url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-coral hover:underline inline-flex items-center gap-1">
+                    Open link <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : '—';
                 const DETAIL_FIELDS: { label: string; value: React.ReactNode }[] = [
                   { label: 'Full name', value: cand.full_name || '—' },
+                  { label: 'Gender', value: cand.gender || '—' },
                   { label: 'Date of birth', value: cand.date_of_birth || '—' },
                   { label: 'Nationality', value: cand.nationality || '—' },
-                  { label: 'Phone', value: cand.phone || '—' },
+                  { label: 'Country of birth', value: cand.country_of_birth || '—' },
+                  { label: 'Place of birth', value: cand.place_of_birth || '—' },
+                  { label: 'Marital status', value: cand.marital_status || '—' },
+                  { label: "Father's full name", value: cand.father_name || '—' },
+                  { label: "Mother's full name", value: cand.mother_name || '—' },
+                  { label: 'Phone / WhatsApp', value: cand.phone || '—' },
                   { label: 'Email', value: cand.email || '—' },
                   { label: 'Country of residence', value: cand.country_of_residence || '—' },
+                  { label: 'City', value: cand.residence_city || '—' },
+                  { label: 'Municipality', value: cand.residence_municipality || '—' },
+                  { label: 'Street', value: cand.residence_street || '—' },
+                  { label: 'House number', value: cand.residence_house_number || '—' },
                   { label: 'EU citizenship', value: cand.eu_citizenship === null ? '—' : cand.eu_citizenship ? 'Yes' : 'No' },
+                  { label: 'Passport number', value: cand.passport_number || '—' },
+                  { label: 'Passport place of issue', value: cand.passport_place_of_issue || '—' },
+                  { label: 'Passport issue date', value: cand.passport_issue_date || '—' },
+                  { label: 'Passport expiry date', value: cand.passport_expiry_date || '—' },
+                  { label: 'Highest education', value: cand.highest_education || '—' },
+                  { label: 'Previous work experience', value: cand.work_experience || '—' },
+                  { label: 'Previous travel and visa history', value: cand.travel_visa_history || '—' },
                   { label: 'Target country', value: cand.target_country || '—' },
                   { label: 'Job category', value: cand.job_category || '—' },
                   { label: 'Driving licence', value: cand.driving_licence === null ? '—' : cand.driving_licence ? 'Yes' : 'No' },
                   { label: 'Driving licence conversion', value: cand.driving_licence_conversion_status || '—' },
-                  {
-                    label: 'Skills video',
-                    value: cand.video_url ? (
-                      <a href={cand.video_url} target="_blank" rel="noopener noreferrer" className="text-coral hover:underline inline-flex items-center gap-1">
-                        Open link <ExternalLink className="w-3 h-3" />
-                      </a>
-                    ) : '—',
-                  },
+                  { label: 'Introduction video', value: videoLink(cand.intro_video_url) },
+                  { label: 'Skills demonstration video', value: videoLink(cand.video_url) },
                   { label: 'Placement status', value: cand.placement_status },
                   { label: 'Created', value: new Date(cand.created_at).toLocaleString() },
                   { label: 'Last updated', value: new Date(cand.updated_at).toLocaleString() },
@@ -760,7 +791,14 @@ const Admin: React.FC = () => {
                       ← Back to {selectedPartner.company_name}'s candidates
                     </button>
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-orbitron text-xl font-bold text-navy">{cand.full_name || 'Not yet filled in'}</h3>
+                      <h3 className="font-orbitron text-xl font-bold text-navy">
+                        {cand.full_name || 'Not yet filled in'}
+                        {selectedPartner.code && (
+                          <span className="text-gray-400 font-medium ml-2">
+                            ({formatCandidateRef(selectedPartner.code, cand.candidate_number)})
+                          </span>
+                        )}
+                      </h3>
                       {getStatusBadge(cand.status)}
                     </div>
                     {cand.status === 'changes_requested' && cand.changes_requested_note && (
@@ -791,7 +829,7 @@ const Admin: React.FC = () => {
                               disabled={isLoading(`preview-cand-doc-${doc.id}`)}
                               className="text-sm bg-gray-50 border rounded-lg px-3 py-2 text-blue-600 hover:text-blue-800 disabled:opacity-50"
                             >
-                              {doc.document_type}
+                              {CANDIDATE_DOC_TYPE_LABELS[doc.document_type as keyof typeof CANDIDATE_DOC_TYPE_LABELS] ?? doc.document_type}
                             </button>
                           ))}
                         </div>
@@ -805,26 +843,40 @@ const Admin: React.FC = () => {
               // out — a candidate the partner/candidate hasn't finished
               // filling in yet isn't ready for admin to act on.
               if (selectedPartner) {
-                const candidates = partnerCandidates[selectedPartner.id]?.filter((c) => c.status !== 'draft');
+                const submittedCandidates = partnerCandidates[selectedPartner.id]?.filter((c) => c.status !== 'draft');
+                const candidates = submittedCandidates && filterBySearch(submittedCandidates, partnerCandidateSearch, (c) => [
+                  c.full_name, c.nationality, c.target_country, c.job_category,
+                  selectedPartner.code ? formatCandidateRef(selectedPartner.code, c.candidate_number) : null,
+                ]);
                 return (
                   <div>
                     <button onClick={() => setSelectedPartnerId(null)} className="text-sm text-gray-500 hover:text-coral mb-4">
                       ← Back to Partners
                     </button>
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-orbitron text-xl font-bold text-navy">{selectedPartner.company_name}</h3>
+                      <h3 className="font-orbitron text-xl font-bold text-navy">
+                        {selectedPartner.company_name}
+                        {selectedPartner.code && <span className="text-gray-400 font-medium ml-2">({selectedPartner.code})</span>}
+                      </h3>
                       {getStatusBadge(selectedPartner.registration_status)}
                     </div>
                     <p className="text-sm text-gray-500 mb-4">
                       {selectedPartner.contact_person_name} — {selectedPartner.contact_email}
                     </p>
                     <h4 className="font-semibold text-navy mb-2">Submitted Candidates</h4>
+                    {submittedCandidates && submittedCandidates.length > 0 && (
+                      <div className="mb-3 flex items-center gap-4">
+                        <SearchInput value={partnerCandidateSearch} onChange={setPartnerCandidateSearch} placeholder="Search candidates..." />
+                      </div>
+                    )}
                     {loadingPartnerCandidates === selectedPartner.id ? (
                       <div className="text-center py-6">
                         <div className="animate-spin w-6 h-6 border-4 border-coral border-t-transparent rounded-full mx-auto"></div>
                       </div>
                     ) : !candidates || candidates.length === 0 ? (
-                      <p className="text-sm text-gray-500">No candidates submitted yet.</p>
+                      <p className="text-sm text-gray-500">
+                        {submittedCandidates && submittedCandidates.length > 0 ? 'No candidates match your search.' : 'No candidates submitted yet.'}
+                      </p>
                     ) : (
                       <div className="space-y-3">
                         {candidates.map((cand) => (
@@ -838,7 +890,14 @@ const Admin: React.FC = () => {
                           >
                             <div className="flex items-center justify-between gap-4 min-w-max">
                               <div>
-                                <p className="font-medium text-navy whitespace-nowrap">{cand.full_name || 'Not yet filled in'}</p>
+                                <p className="font-medium text-navy whitespace-nowrap">
+                                  {cand.full_name || 'Not yet filled in'}
+                                  {selectedPartner.code && (
+                                    <span className="text-gray-400 font-normal ml-2">
+                                      ({formatCandidateRef(selectedPartner.code, cand.candidate_number)})
+                                    </span>
+                                  )}
+                                </p>
                                 <p className="text-xs text-gray-500 whitespace-nowrap">
                                   {cand.nationality || '—'} → {cand.target_country || '—'} · {cand.job_category || '—'}
                                 </p>
@@ -858,8 +917,14 @@ const Admin: React.FC = () => {
 
               // Screen 1: every partner.
               return (
-                <div className="space-y-4">
-                  {partners.map((partner) => (
+                <div>
+                  {partners.length > 0 && (
+                    <div className="mb-4 flex items-center gap-4">
+                      <SearchInput value={partnerSearch} onChange={setPartnerSearch} placeholder="Search partners..." />
+                    </div>
+                  )}
+                  <div className="space-y-4">
+                  {filteredPartners.map((partner) => (
                     <div
                       key={partner.id}
                       role="button"
@@ -874,7 +939,10 @@ const Admin: React.FC = () => {
                             <Building2 className="w-5 h-5 text-coral" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-navy whitespace-nowrap">{partner.company_name}</h3>
+                            <h3 className="font-semibold text-navy whitespace-nowrap">
+                              {partner.company_name}
+                              {partner.code && <span className="text-gray-400 font-normal ml-2">({partner.code})</span>}
+                            </h3>
                             <p className="text-sm text-gray-500 whitespace-nowrap">
                               {partner.contact_person_name} — {partner.contact_email}
                             </p>
@@ -904,7 +972,12 @@ const Admin: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                  {partners.length === 0 && <p className="text-center py-8 text-gray-500">No partners yet.</p>}
+                  {filteredPartners.length === 0 && (
+                    <p className="text-center py-8 text-gray-500">
+                      {partners.length > 0 ? 'No partners match your search.' : 'No partners yet.'}
+                    </p>
+                  )}
+                  </div>
                 </div>
               );
             })()}

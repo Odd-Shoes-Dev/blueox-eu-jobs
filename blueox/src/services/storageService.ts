@@ -41,6 +41,18 @@ const ALLOWED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 
+// The upload file's own extension is attacker-controlled (it's just whatever
+// the browser read from the selected file's name), but callers splice it into
+// the ImageKit storage path/filename. Strip it down to a short run of
+// alphanumerics so it can't inject '/', '..', or other path-meaningful
+// characters into that path, with a safe fallback when nothing usable is left
+// (e.g. a file with no extension at all).
+export function getSafeExtension(fileName: string, fallback = 'bin'): string {
+  const raw = fileName.split('.').pop() ?? '';
+  const cleaned = raw.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
+  return cleaned || fallback;
+}
+
 function validateFile(file: File): Error | null {
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return new Error(`File is too large (max ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB)`);

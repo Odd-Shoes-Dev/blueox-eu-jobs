@@ -18,9 +18,14 @@ export async function updateCandidateByToken(
   fields: Partial<
     Pick<
       PartnerCandidate,
-      | 'full_name' | 'date_of_birth' | 'nationality' | 'phone' | 'email'
-      | 'country_of_residence' | 'eu_citizenship' | 'target_country' | 'job_category'
-      | 'driving_licence' | 'driving_licence_conversion_status' | 'video_url'
+      | 'full_name' | 'gender' | 'date_of_birth' | 'nationality' | 'country_of_birth' | 'place_of_birth'
+      | 'marital_status' | 'father_name' | 'mother_name' | 'phone' | 'email'
+      | 'country_of_residence' | 'residence_city' | 'residence_municipality' | 'residence_street'
+      | 'residence_house_number' | 'eu_citizenship'
+      | 'passport_number' | 'passport_place_of_issue' | 'passport_issue_date' | 'passport_expiry_date'
+      | 'highest_education' | 'work_experience' | 'travel_visa_history'
+      | 'target_country' | 'job_category'
+      | 'driving_licence' | 'driving_licence_conversion_status' | 'intro_video_url' | 'video_url'
     >
   >
 ): Promise<Omit<PartnerCandidate, 'access_token'>> {

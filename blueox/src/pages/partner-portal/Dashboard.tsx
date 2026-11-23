@@ -5,8 +5,11 @@ import { Plus, Copy, Check, MoreVertical, ChevronRight } from 'lucide-react';
 import * as partnerCandidatesService from '../../services/partnerCandidatesService';
 import type { PartnerCandidate } from '../../services/partnerCandidatesService';
 import { getCompletionPercent } from '../../services/partnerCandidatesService';
+import { formatCandidateRef } from '../../services/partnerCandidatesService';
 import { usePartnerAuth } from '../../contexts/PartnerAuthContext';
 import CompletionBar from '../../components/CompletionBar';
+import { filterBySearch } from '../../lib/search';
+import SearchInput from '../../components/SearchInput';
 
 const STATUS_LABEL: Record<PartnerCandidate['status'], string> = {
   draft: 'Draft',
@@ -23,7 +26,7 @@ const STATUS_CLASSES: Record<PartnerCandidate['status'], string> = {
 };
 
 const Dashboard: React.FC = () => {
-  const { signOut } = usePartnerAuth();
+  const { signOut, partner } = usePartnerAuth();
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<PartnerCandidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +42,7 @@ const Dashboard: React.FC = () => {
   // (a purely visual guide, see getCompletionPercent) — fetched once for all
   // of this partner's candidates rather than per row.
   const [docCounts, setDocCounts] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState('');
 
   const fetchCandidates = async () => {
     setLoading(true);
@@ -115,10 +119,25 @@ const Dashboard: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const filteredCandidates = filterBySearch(candidates, search, (c) => [
+    c.full_name, c.target_country, c.job_category,
+    partner?.code ? formatCandidateRef(partner.code, c.candidate_number) : null,
+  ]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="font-orbitron text-2xl font-bold text-navy">Your Candidates</h1>
+        <div>
+          {partner?.company_name && (
+            <h1 className="font-orbitron text-2xl font-bold text-navy">{partner.company_name}</h1>
+          )}
+          {partner?.code && (
+            <p className="text-sm text-gray-500 mt-1">
+              Agency code: <span className="font-semibold text-navy">{partner.code}</span>
+            </p>
+          )}
+          <p className="text-sm font-space font-semibold text-gray-500 mt-1">Your Candidates</p>
+        </div>
         <button
           onClick={handleAddCandidate}
           disabled={creating}
@@ -162,10 +181,20 @@ const Dashboard: React.FC = () => {
           No candidates yet. Click "Add Candidate" to create your first one.
         </div>
       ) : (
+        <>
+          <div className="mb-4 flex items-center gap-4">
+            <SearchInput value={search} onChange={setSearch} placeholder="Search candidates..." />
+          </div>
+          {filteredCandidates.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-10 text-center text-gray-500">
+              No candidates match your search.
+            </div>
+          ) : (
         <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-gray-50 text-left text-gray-500">
               <tr>
+                <th className="px-5 py-3 font-space font-semibold">Ref</th>
                 <th className="px-5 py-3 font-space font-semibold">Name</th>
                 <th className="px-5 py-3 font-space font-semibold">Target country</th>
                 <th className="px-5 py-3 font-space font-semibold">Status</th>
@@ -175,12 +204,15 @@ const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {candidates.map((c) => (
+              {filteredCandidates.map((c) => (
                 <tr
                   key={c.id}
                   onClick={() => navigate(`/partner-portal/candidates/${c.id}`)}
                   className="border-t border-gray-100 cursor-pointer hover:bg-gray-50 transition"
                 >
+                  <td className="px-5 py-3 text-gray-500 font-medium whitespace-nowrap">
+                    {partner?.code ? formatCandidateRef(partner.code, c.candidate_number) : '—'}
+                  </td>
                   <td className="px-5 py-3 text-navy font-medium whitespace-nowrap">{c.full_name || '(no name yet)'}</td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{c.target_country || '—'}</td>
                   <td className="px-5 py-3 whitespace-nowrap">
@@ -219,6 +251,8 @@ const Dashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
+          )}
+        </>
       )}
 
       {candidateMenu && createPortal(

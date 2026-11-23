@@ -2,36 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Copy, Check, Upload, Trash2, Download, Lock, ExternalLink, Send, RotateCcw, Eye, X } from 'lucide-react';
 import * as partnerCandidatesService from '../../services/partnerCandidatesService';
-import { CANDIDATE_DOC_TYPES, getCompletionPercent } from '../../services/partnerCandidatesService';
+import { CANDIDATE_DOC_TYPES, CANDIDATE_DOC_TYPE_LABELS, CANDIDATE_FIELDS, formatCandidateRef, getCompletionPercent } from '../../services/partnerCandidatesService';
 import type { PartnerCandidate, PartnerCandidateDocument } from '../../services/partnerCandidatesService';
 import * as storageService from '../../services/storageService';
 import { getFileKind } from '../../lib/fileKind';
 import CompletionBar from '../../components/CompletionBar';
+import { usePartnerAuth } from '../../contexts/PartnerAuthContext';
 
 const AUTOSAVE_DELAY_MS = 1500;
 
 const DOC_TYPES: readonly string[] = CANDIDATE_DOC_TYPES;
-const DOC_LABELS: Record<string, string> = {
-  passport: 'Passport',
-  cv: 'CV / Resume',
-  education_certificate: 'Education Certificate',
-  work_reference: 'Work Reference',
-  medical_certificate: 'Medical Certificate',
-  police_clearance: 'Police Clearance',
-};
+const DOC_LABELS: Record<string, string> = CANDIDATE_DOC_TYPE_LABELS;
 
-const FIELDS: { key: keyof PartnerCandidate; label: string; type?: string }[] = [
-  { key: 'full_name', label: 'Full name' },
-  { key: 'date_of_birth', label: 'Date of birth', type: 'date' },
-  { key: 'nationality', label: 'Nationality' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'email', label: 'Email', type: 'email' },
-  { key: 'country_of_residence', label: 'Country of residence' },
-  { key: 'target_country', label: 'Target country' },
-  { key: 'job_category', label: 'Job category' },
-  { key: 'driving_licence_conversion_status', label: 'Driving licence conversion status' },
-  { key: 'video_url', label: 'Skills video link' },
-];
+const FIELDS = CANDIDATE_FIELDS;
+const FIELD_GROUPS = Array.from(new Set(FIELDS.map((f) => f.group)));
 
 const AUTOSAVE_KEYS: (keyof PartnerCandidate)[] = FIELDS.map((f) => f.key);
 
@@ -42,6 +26,7 @@ const snapshotOf = (c: PartnerCandidate) => JSON.stringify(AUTOSAVE_KEYS.map((k)
 
 const CandidateDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { partner } = usePartnerAuth();
   const [candidate, setCandidate] = useState<PartnerCandidate | null>(null);
   const [documents, setDocuments] = useState<PartnerCandidateDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,18 +95,10 @@ const CandidateDetail: React.FC = () => {
     const sentSnapshot = snapshotOf(candidate);
     setSaveStatus('saving');
     try {
-      const updated = await partnerCandidatesService.updateCandidate(id, {
-        full_name: candidate.full_name ?? undefined,
-        date_of_birth: candidate.date_of_birth ?? undefined,
-        nationality: candidate.nationality ?? undefined,
-        phone: candidate.phone ?? undefined,
-        email: candidate.email ?? undefined,
-        country_of_residence: candidate.country_of_residence ?? undefined,
-        target_country: candidate.target_country ?? undefined,
-        job_category: candidate.job_category ?? undefined,
-        driving_licence_conversion_status: candidate.driving_licence_conversion_status ?? undefined,
-        video_url: candidate.video_url ?? undefined,
-      });
+      const fields = Object.fromEntries(
+        AUTOSAVE_KEYS.map((k) => [k, candidate[k] ?? undefined])
+      ) as Parameters<typeof partnerCandidatesService.updateCandidate>[1];
+      const updated = await partnerCandidatesService.updateCandidate(id, fields);
       lastSavedRef.current = sentSnapshot;
       setCandidate((current) => current && ({
         ...current,
@@ -195,7 +172,7 @@ const CandidateDetail: React.FC = () => {
     if (!id) return;
     setUploadError('');
     setUploadingType(docType);
-    const path = `${id}/${docType}.${file.name.split('.').pop()}`;
+    const path = `${id}/${docType}.${storageService.getSafeExtension(file.name)}`;
     const { error, path: storedPath } = await storageService.uploadDocument('partner-candidate', path, file);
     if (!error && storedPath) {
       await partnerCandidatesService.insertPartnerDocument({
@@ -260,7 +237,14 @@ const CandidateDetail: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <Link to="/partner-portal" className="text-sm text-gray-500 hover:text-coral">← Back to candidates</Link>
-          <h1 className="font-orbitron text-2xl font-bold text-navy mt-1">{candidate.full_name || 'New candidate'}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <h1 className="font-orbitron text-2xl font-bold text-navy">{candidate.full_name || 'New candidate'}</h1>
+            {partner?.code && (
+              <span className="text-sm font-space font-semibold text-gray-400">
+                ({formatCandidateRef(partner.code, candidate.candidate_number)})
+              </span>
+            )}
+          </div>
         </div>
         <button
           onClick={handleCopyLink}
@@ -283,24 +267,63 @@ const CandidateDetail: React.FC = () => {
 
       <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
         <h2 className="font-space font-bold text-navy mb-4">Candidate details</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          {FIELDS.map((f) => (
-            <div key={f.key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-              <input
-                type={f.type ?? 'text'}
-                value={f.type === 'date' ? ((candidate[f.key] as string) ?? '').slice(0, 10) : (candidate[f.key] as string) ?? ''}
-                onChange={(e) => handleFieldChange(f.key, e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
-              />
+        {FIELD_GROUPS.map((group) => (
+          <div key={group} className="mb-6 last:mb-0">
+            <h3 className="text-xs font-space font-semibold text-gray-400 uppercase tracking-wide mb-3">{group}</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              {FIELDS.filter((f) => f.group === group).map((f) => (
+                <div key={f.key}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+                  {f.type === 'select' ? (
+                    <select
+                      value={(candidate[f.key] as string) ?? ''}
+                      onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+                    >
+                      <option value="">Select…</option>
+                      {f.options?.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : f.type === 'textarea' ? (
+                    <>
+                      <textarea
+                        value={(candidate[f.key] as string) ?? ''}
+                        onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                        maxLength={f.maxLength}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+                      />
+                      {f.maxLength && (
+                        <p className="text-xs text-gray-400 mt-1 text-right">
+                          {f.maxLength - ((candidate[f.key] as string) ?? '').length} characters left
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      type={f.type ?? 'text'}
+                      value={f.type === 'date' ? ((candidate[f.key] as string) ?? '').slice(0, 10) : (candidate[f.key] as string) ?? ''}
+                      onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                      maxLength={f.maxLength}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+                    />
+                  )}
+                  {f.key === 'video_url' && candidate.video_url && (
+                    <a href={candidate.video_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-coral text-xs mt-1 hover:underline">
+                      Open link <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {f.key === 'intro_video_url' && candidate.intro_video_url && (
+                    <a href={candidate.intro_video_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-coral text-xs mt-1 hover:underline">
+                      Open link <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {candidate.video_url && (
-          <a href={candidate.video_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-coral text-sm mt-2 hover:underline">
-            Open video link <ExternalLink className="w-3 h-3" />
-          </a>
-        )}
+          </div>
+        ))}
         <div className="mt-4 flex items-center gap-3">
           <button
             onClick={handleSave}
