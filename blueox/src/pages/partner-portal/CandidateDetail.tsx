@@ -170,7 +170,7 @@ const CandidateDetail: React.FC = () => {
     if (!id) return;
     setUploadError('');
     setUploadingType(docType);
-    const path = `${id}/${docType}.${file.name.split('.').pop()}`;
+    const path = `${id}/${docType}.${storageService.getSafeExtension(file.name)}`;
     const { error, path: storedPath } = await storageService.uploadDocument('partner-candidate', path, file);
     if (!error && storedPath) {
       await partnerCandidatesService.insertPartnerDocument({
@@ -277,17 +277,26 @@ const CandidateDetail: React.FC = () => {
                       ))}
                     </select>
                   ) : f.type === 'textarea' ? (
-                    <textarea
-                      value={(candidate[f.key] as string) ?? ''}
-                      onChange={(e) => handleFieldChange(f.key, e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
-                    />
+                    <>
+                      <textarea
+                        value={(candidate[f.key] as string) ?? ''}
+                        onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                        maxLength={f.maxLength}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+                      />
+                      {f.maxLength && (
+                        <p className="text-xs text-gray-400 mt-1 text-right">
+                          {f.maxLength - ((candidate[f.key] as string) ?? '').length} characters left
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <input
                       type={f.type ?? 'text'}
                       value={f.type === 'date' ? ((candidate[f.key] as string) ?? '').slice(0, 10) : (candidate[f.key] as string) ?? ''}
                       onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                      maxLength={f.maxLength}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
                     />
                   )}

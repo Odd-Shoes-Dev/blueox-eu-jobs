@@ -81,48 +81,59 @@ export interface CandidateField {
   label: string;
   type?: CandidateFieldType;
   options?: string[];
+  // Enforced both here (so the input/textarea can't be typed past it, and a
+  // textarea can show a live "characters left" count) and again server-side
+  // in blueox-api/api/clients.ts (MAX_LENGTHS there must be kept in sync) —
+  // maxLength alone is only a client-side HTML attribute, not a real limit.
+  maxLength?: number;
   group: string;
 }
 
 export const CANDIDATE_FIELDS: CandidateField[] = [
   // Identity
-  { key: 'full_name', label: 'Full name (as on passport)', group: 'Identity' },
+  { key: 'full_name', label: 'Full name (as on passport)', maxLength: 200, group: 'Identity' },
   { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female', 'Other'], group: 'Identity' },
   { key: 'date_of_birth', label: 'Date of birth', type: 'date', group: 'Identity' },
-  { key: 'nationality', label: 'Nationality', group: 'Identity' },
-  { key: 'country_of_birth', label: 'Country of birth', group: 'Identity' },
-  { key: 'place_of_birth', label: 'Place of birth (city/town)', group: 'Identity' },
+  { key: 'nationality', label: 'Nationality', maxLength: 150, group: 'Identity' },
+  { key: 'country_of_birth', label: 'Country of birth', maxLength: 150, group: 'Identity' },
+  { key: 'place_of_birth', label: 'Place of birth (city/town)', maxLength: 150, group: 'Identity' },
   {
     key: 'marital_status', label: 'Marital status', type: 'select',
     options: ['Single', 'Married', 'Divorced', 'Widowed'], group: 'Identity',
   },
-  { key: 'father_name', label: "Father's full name", group: 'Identity' },
-  { key: 'mother_name', label: "Mother's full name", group: 'Identity' },
+  { key: 'father_name', label: "Father's full name", maxLength: 200, group: 'Identity' },
+  { key: 'mother_name', label: "Mother's full name", maxLength: 200, group: 'Identity' },
   // Contact
-  { key: 'phone', label: 'Phone / WhatsApp', group: 'Contact' },
-  { key: 'email', label: 'Email', type: 'email', group: 'Contact' },
+  { key: 'phone', label: 'Phone / WhatsApp', maxLength: 30, group: 'Contact' },
+  { key: 'email', label: 'Email', type: 'email', maxLength: 150, group: 'Contact' },
   // Address
-  { key: 'country_of_residence', label: 'Country of residence', group: 'Address' },
-  { key: 'residence_city', label: 'City', group: 'Address' },
-  { key: 'residence_municipality', label: 'Municipality', group: 'Address' },
-  { key: 'residence_street', label: 'Street', group: 'Address' },
-  { key: 'residence_house_number', label: 'House number', group: 'Address' },
+  { key: 'country_of_residence', label: 'Country of residence', maxLength: 150, group: 'Address' },
+  { key: 'residence_city', label: 'City', maxLength: 150, group: 'Address' },
+  { key: 'residence_municipality', label: 'Municipality', maxLength: 150, group: 'Address' },
+  { key: 'residence_street', label: 'Street', maxLength: 150, group: 'Address' },
+  { key: 'residence_house_number', label: 'House number', maxLength: 50, group: 'Address' },
   // Passport
-  { key: 'passport_number', label: 'Passport number', group: 'Passport' },
-  { key: 'passport_place_of_issue', label: 'Passport place of issue', group: 'Passport' },
+  { key: 'passport_number', label: 'Passport number', maxLength: 50, group: 'Passport' },
+  { key: 'passport_place_of_issue', label: 'Passport place of issue', maxLength: 150, group: 'Passport' },
   { key: 'passport_issue_date', label: 'Passport issue date', type: 'date', group: 'Passport' },
   { key: 'passport_expiry_date', label: 'Passport expiry date', type: 'date', group: 'Passport' },
   // Background
-  { key: 'highest_education', label: 'Highest education qualification', group: 'Background' },
-  { key: 'work_experience', label: 'Previous work experience', type: 'textarea', group: 'Background' },
-  { key: 'travel_visa_history', label: 'Previous travel and visa history', type: 'textarea', group: 'Background' },
+  { key: 'highest_education', label: 'Highest education qualification', maxLength: 150, group: 'Background' },
+  { key: 'work_experience', label: 'Previous work experience', type: 'textarea', maxLength: 2000, group: 'Background' },
+  {
+    key: 'travel_visa_history', label: 'Previous travel and visa history', type: 'textarea',
+    maxLength: 2000, group: 'Background',
+  },
   // Work preferences
-  { key: 'target_country', label: 'Target country', group: 'Work preferences' },
-  { key: 'job_category', label: 'Job category', group: 'Work preferences' },
-  { key: 'driving_licence_conversion_status', label: 'Driving licence conversion status', group: 'Work preferences' },
+  { key: 'target_country', label: 'Target country', maxLength: 150, group: 'Work preferences' },
+  { key: 'job_category', label: 'Job category', maxLength: 150, group: 'Work preferences' },
+  {
+    key: 'driving_licence_conversion_status', label: 'Driving licence conversion status',
+    maxLength: 150, group: 'Work preferences',
+  },
   // Videos
-  { key: 'intro_video_url', label: 'Introduction video link', group: 'Videos' },
-  { key: 'video_url', label: 'Skills demonstration video link', group: 'Videos' },
+  { key: 'intro_video_url', label: 'Introduction video link', maxLength: 500, group: 'Videos' },
+  { key: 'video_url', label: 'Skills demonstration video link', maxLength: 500, group: 'Videos' },
 ];
 
 type CompletionFields = Pick<

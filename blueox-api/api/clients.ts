@@ -17,6 +17,38 @@ const EDITABLE_FIELDS = [
 
 const REQUIRED_TO_SUBMIT = ['full_name', 'date_of_birth', 'nationality', 'email'] as const;
 
+// Mirrors the maxLength values on CANDIDATE_FIELDS in
+// blueox/src/services/partnerCandidatesService.ts — keep both in sync. The
+// frontend's maxLength is only a client-side HTML attribute, so this is the
+// real enforcement; a value over its limit is silently truncated rather than
+// rejected, since this is a data-quality guard, not a validation rule the
+// user needs to be told about.
+const MAX_LENGTHS: Partial<Record<typeof EDITABLE_FIELDS[number], number>> = {
+  full_name: 200,
+  father_name: 200,
+  mother_name: 200,
+  nationality: 150,
+  country_of_birth: 150,
+  place_of_birth: 150,
+  phone: 30,
+  email: 150,
+  country_of_residence: 150,
+  residence_city: 150,
+  residence_municipality: 150,
+  residence_street: 150,
+  residence_house_number: 50,
+  passport_number: 50,
+  passport_place_of_issue: 150,
+  highest_education: 150,
+  work_experience: 2000,
+  travel_visa_history: 2000,
+  target_country: 150,
+  job_category: 150,
+  driving_licence_conversion_status: 150,
+  intro_video_url: 500,
+  video_url: 500,
+};
+
 // `date_of_birth` is a plain DATE column — every query below casts it to
 // text (`date_of_birth::text`) so it comes back as a plain 'YYYY-MM-DD'
 // string instead of a JS Date, which the pg driver would otherwise construct
@@ -324,7 +356,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const b = (req.body ?? {}) as Record<string, unknown>;
-    const values = Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, b[f] ?? row![f]]));
+    const values = Object.fromEntries(EDITABLE_FIELDS.map((f) => {
+      let v = b[f] ?? row![f];
+      const max = MAX_LENGTHS[f];
+      if (max && typeof v === 'string') v = v.slice(0, max);
+      return [f, v];
+    }));
     const reopening = candidate && row.status === 'changes_requested';
 
     const updated = await sql`
