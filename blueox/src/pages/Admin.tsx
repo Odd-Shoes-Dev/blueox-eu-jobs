@@ -13,7 +13,7 @@ import * as storageService from '../services/storageService';
 import * as adminService from '../services/adminService';
 import type { AdminPartner } from '../services/adminService';
 import type { PartnerCandidate } from '../services/partnerCandidatesService';
-import { CANDIDATE_DOC_TYPE_LABELS } from '../services/partnerCandidatesService';
+import { CANDIDATE_DOC_TYPE_LABELS, formatCandidateRef } from '../services/partnerCandidatesService';
 import { useHeaderHidden } from '../hooks/useHeaderHidden';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs' | 'partners';
@@ -777,7 +777,14 @@ const Admin: React.FC = () => {
                       ← Back to {selectedPartner.company_name}'s candidates
                     </button>
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-orbitron text-xl font-bold text-navy">{cand.full_name || 'Not yet filled in'}</h3>
+                      <h3 className="font-orbitron text-xl font-bold text-navy">
+                        {cand.full_name || 'Not yet filled in'}
+                        {selectedPartner.code && (
+                          <span className="text-gray-400 font-medium ml-2">
+                            ({formatCandidateRef(selectedPartner.code, cand.candidate_number)})
+                          </span>
+                        )}
+                      </h3>
                       {getStatusBadge(cand.status)}
                     </div>
                     {cand.status === 'changes_requested' && cand.changes_requested_note && (
@@ -829,7 +836,10 @@ const Admin: React.FC = () => {
                       ← Back to Partners
                     </button>
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-orbitron text-xl font-bold text-navy">{selectedPartner.company_name}</h3>
+                      <h3 className="font-orbitron text-xl font-bold text-navy">
+                        {selectedPartner.company_name}
+                        {selectedPartner.code && <span className="text-gray-400 font-medium ml-2">({selectedPartner.code})</span>}
+                      </h3>
                       {getStatusBadge(selectedPartner.registration_status)}
                     </div>
                     <p className="text-sm text-gray-500 mb-4">
@@ -855,7 +865,14 @@ const Admin: React.FC = () => {
                           >
                             <div className="flex items-center justify-between gap-4 min-w-max">
                               <div>
-                                <p className="font-medium text-navy whitespace-nowrap">{cand.full_name || 'Not yet filled in'}</p>
+                                <p className="font-medium text-navy whitespace-nowrap">
+                                  {cand.full_name || 'Not yet filled in'}
+                                  {selectedPartner.code && (
+                                    <span className="text-gray-400 font-normal ml-2">
+                                      ({formatCandidateRef(selectedPartner.code, cand.candidate_number)})
+                                    </span>
+                                  )}
+                                </p>
                                 <p className="text-xs text-gray-500 whitespace-nowrap">
                                   {cand.nationality || '—'} → {cand.target_country || '—'} · {cand.job_category || '—'}
                                 </p>
@@ -891,7 +908,10 @@ const Admin: React.FC = () => {
                             <Building2 className="w-5 h-5 text-coral" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-navy whitespace-nowrap">{partner.company_name}</h3>
+                            <h3 className="font-semibold text-navy whitespace-nowrap">
+                              {partner.company_name}
+                              {partner.code && <span className="text-gray-400 font-normal ml-2">({partner.code})</span>}
+                            </h3>
                             <p className="text-sm text-gray-500 whitespace-nowrap">
                               {partner.contact_person_name} — {partner.contact_email}
                             </p>

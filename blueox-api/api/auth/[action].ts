@@ -88,10 +88,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const passwordHash = await hashPassword(password);
     const verificationToken = generateToken();
 
+    // code is a sequential, content-free 3-letter label (AAA, AAB, ...),
+    // generated from a DB sequence so it's unique by construction with no
+    // collision check needed — see neon-database/0016_partner_and_candidate_codes.sql.
     const rows = await sql`
-      INSERT INTO partners (company_name, contact_person_name, contact_email, contact_phone, email, password_hash, verification_token, verification_token_expires)
-      VALUES (${company_name}, ${contact_person_name}, ${contact_email}, ${contact_phone ?? null}, ${email}, ${passwordHash}, ${verificationToken}, now() + interval '24 hours')
-      RETURNING id, company_name, contact_email, registration_status
+      INSERT INTO partners (company_name, contact_person_name, contact_email, contact_phone, email, password_hash, verification_token, verification_token_expires, code)
+      VALUES (
+        ${company_name}, ${contact_person_name}, ${contact_email}, ${contact_phone ?? null}, ${email}, ${passwordHash}, ${verificationToken}, now() + interval '24 hours',
+        (SELECT chr(65 + (n / 676) % 26) || chr(65 + (n / 26) % 26) || chr(65 + n % 26) FROM (SELECT (nextval('partner_code_seq') - 1)::int AS n) t)
+      )
+      RETURNING id, company_name, contact_email, registration_status, code
     `;
     const partner = rows[0];
 

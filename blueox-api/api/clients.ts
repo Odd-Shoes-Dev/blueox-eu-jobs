@@ -101,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
       const rows = await sql`
         SELECT id, company_name, contact_person_name, contact_email, contact_phone, email,
-               registration_status, registration_number, tax_id, business_activity_notes,
+               registration_status, code, registration_number, tax_id, business_activity_notes,
                billing_contact_name, billing_email, billing_address, invoicing_enabled,
                created_at, updated_at
         FROM partners WHERE id = ${id}
@@ -146,7 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const partnerId = authedPartner ? authedPartner.id : (req.query.partner_id as string | undefined);
       if (!partnerId) return res.status(400).json({ error: 'partner_id is required' });
       const rows = await sql`
-        SELECT id, partner_id, access_token, status, changes_requested_note,
+        SELECT id, partner_id, access_token, status, changes_requested_note, candidate_number,
                full_name, gender, date_of_birth::text AS date_of_birth, nationality,
                country_of_birth, place_of_birth, marital_status, father_name, mother_name,
                phone, email,
@@ -167,10 +167,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'POST') {
       if (!authedPartner) return res.status(403).json({ error: 'Forbidden' });
       const accessToken = generateToken();
+      // Atomically claim the next candidate number under this partner — the
+      // row lock an UPDATE takes makes this race-free against concurrent
+      // creates without needing an explicit transaction.
+      const [{ candidate_counter }] = await sql`
+        UPDATE partners SET candidate_counter = candidate_counter + 1
+        WHERE id = ${authedPartner.id}
+        RETURNING candidate_counter
+      `;
       const rows = await sql`
-        INSERT INTO partner_candidates (partner_id, access_token)
-        VALUES (${authedPartner.id}, ${accessToken})
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
+        INSERT INTO partner_candidates (partner_id, access_token, candidate_number)
+        VALUES (${authedPartner.id}, ${accessToken}, ${candidate_counter})
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
           full_name, gender, date_of_birth::text AS date_of_birth, nationality,
           country_of_birth, place_of_birth, marital_status, father_name, mother_name,
           phone, email,
@@ -197,7 +205,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else {
     if (!id) return res.status(400).json({ error: 'id is required' });
     const rows = await sql`
-      SELECT id, partner_id, access_token, status, changes_requested_note,
+      SELECT id, partner_id, access_token, status, changes_requested_note, candidate_number,
              full_name, gender, date_of_birth::text AS date_of_birth, nationality,
              country_of_birth, place_of_birth, marital_status, father_name, mother_name,
              phone, email,
@@ -247,7 +255,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updated = await sql`
         UPDATE partner_candidates SET status = 'locked', updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
           full_name, gender, date_of_birth::text AS date_of_birth, nationality,
           country_of_birth, place_of_birth, marital_status, father_name, mother_name,
           phone, email,
@@ -272,7 +280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         UPDATE partner_candidates
         SET status = 'changes_requested', changes_requested_note = ${note}, updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
           full_name, gender, date_of_birth::text AS date_of_birth, nationality,
           country_of_birth, place_of_birth, marital_status, father_name, mother_name,
           phone, email,
@@ -302,7 +310,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updated = await sql`
         UPDATE partner_candidates SET status = 'submitted', updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
           full_name, gender, date_of_birth::text AS date_of_birth, nationality,
           country_of_birth, place_of_birth, marital_status, father_name, mother_name,
           phone, email,
@@ -329,7 +337,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updated = await sql`
         UPDATE partner_candidates SET status = 'draft', changes_requested_note = NULL, updated_at = now()
         WHERE id = ${targetId}
-        RETURNING id, partner_id, access_token, status, changes_requested_note,
+        RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
           full_name, gender, date_of_birth::text AS date_of_birth, nationality,
           country_of_birth, place_of_birth, marital_status, father_name, mother_name,
           phone, email,
@@ -400,7 +408,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         changes_requested_note = ${reopening ? null : row.changes_requested_note as string | null},
         updated_at = now()
       WHERE id = ${targetId}
-      RETURNING id, partner_id, access_token, status, changes_requested_note,
+      RETURNING id, partner_id, access_token, status, changes_requested_note, candidate_number,
         full_name, gender, date_of_birth::text AS date_of_birth, nationality,
         country_of_birth, place_of_birth, marital_status, father_name, mother_name,
         phone, email,

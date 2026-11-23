@@ -10,6 +10,10 @@ export interface PartnerCandidate {
   access_token: string;
   status: 'draft' | 'submitted' | 'locked' | 'changes_requested';
   changes_requested_note: string | null;
+  // Assigned once at creation, sequential within this partner (1, 2, 3, ...) —
+  // combined with the partner's own code for a human reference like "AAA3".
+  // Read-only; never sent in an update.
+  candidate_number: number;
   full_name: string | null;
   gender: string | null;
   date_of_birth: string | null;
@@ -69,6 +73,14 @@ export const CANDIDATE_DOC_TYPE_LABELS: Record<typeof CANDIDATE_DOC_TYPES[number
   signature: 'Signature on White Paper',
   professional_certificate: 'Professional Certificate (if available)',
 };
+
+// A short, unambiguous human reference for a candidate (e.g. "AAA3") — the
+// owning partner's sequential code plus the candidate's sequential number
+// within that partner. Purely a display label, never used for lookup or
+// access (that's still the UUID id / access_token).
+export function formatCandidateRef(partnerCode: string, candidateNumber: number): string {
+  return `${partnerCode}${candidateNumber}`;
+}
 
 // The editable fields of a candidate record, grouped and ordered the way
 // both candidate forms (the partner's and the candidate's own self-service

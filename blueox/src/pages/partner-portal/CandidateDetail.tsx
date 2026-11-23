@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Copy, Check, Upload, Trash2, Download, Lock, ExternalLink, Send, RotateCcw, Eye, X } from 'lucide-react';
 import * as partnerCandidatesService from '../../services/partnerCandidatesService';
-import { CANDIDATE_DOC_TYPES, CANDIDATE_DOC_TYPE_LABELS, CANDIDATE_FIELDS, getCompletionPercent } from '../../services/partnerCandidatesService';
+import { CANDIDATE_DOC_TYPES, CANDIDATE_DOC_TYPE_LABELS, CANDIDATE_FIELDS, formatCandidateRef, getCompletionPercent } from '../../services/partnerCandidatesService';
 import type { PartnerCandidate, PartnerCandidateDocument } from '../../services/partnerCandidatesService';
 import * as storageService from '../../services/storageService';
 import { getFileKind } from '../../lib/fileKind';
 import CompletionBar from '../../components/CompletionBar';
+import { usePartnerAuth } from '../../contexts/PartnerAuthContext';
 
 const AUTOSAVE_DELAY_MS = 1500;
 
@@ -25,6 +26,7 @@ const snapshotOf = (c: PartnerCandidate) => JSON.stringify(AUTOSAVE_KEYS.map((k)
 
 const CandidateDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { partner } = usePartnerAuth();
   const [candidate, setCandidate] = useState<PartnerCandidate | null>(null);
   const [documents, setDocuments] = useState<PartnerCandidateDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,7 +237,14 @@ const CandidateDetail: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <Link to="/partner-portal" className="text-sm text-gray-500 hover:text-coral">← Back to candidates</Link>
-          <h1 className="font-orbitron text-2xl font-bold text-navy mt-1">{candidate.full_name || 'New candidate'}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <h1 className="font-orbitron text-2xl font-bold text-navy">{candidate.full_name || 'New candidate'}</h1>
+            {partner?.code && (
+              <span className="text-sm font-space font-semibold text-gray-400">
+                ({formatCandidateRef(partner.code, candidate.candidate_number)})
+              </span>
+            )}
+          </div>
         </div>
         <button
           onClick={handleCopyLink}

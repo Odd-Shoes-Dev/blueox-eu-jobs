@@ -8,6 +8,7 @@ export interface AdminPartner {
   contact_person_name: string;
   contact_email: string;
   contact_phone: string | null;
+  code: string;
   registration_status: 'pending_review' | 'approved' | 'rejected' | 'suspended';
   created_at: string;
   candidate_count: number;
