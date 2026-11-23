@@ -13,6 +13,7 @@ import * as storageService from '../services/storageService';
 import * as adminService from '../services/adminService';
 import type { AdminPartner } from '../services/adminService';
 import type { PartnerCandidate } from '../services/partnerCandidatesService';
+import { CANDIDATE_DOC_TYPE_LABELS } from '../services/partnerCandidatesService';
 import { useHeaderHidden } from '../hooks/useHeaderHidden';
 
 type Tab = 'clients' | 'applications' | 'documents' | 'payments' | 'jobs' | 'partners';
@@ -730,26 +731,42 @@ const Admin: React.FC = () => {
                 const cand = (partnerCandidates[selectedPartner.id] || []).find((c) => c.id === selectedCandidateId);
                 if (!cand) return null;
                 const candDocs = documents.filter((d) => d.partner_candidate_id === cand.id);
+                const videoLink = (url: string | null) => url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-coral hover:underline inline-flex items-center gap-1">
+                    Open link <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : '—';
                 const DETAIL_FIELDS: { label: string; value: React.ReactNode }[] = [
                   { label: 'Full name', value: cand.full_name || '—' },
+                  { label: 'Gender', value: cand.gender || '—' },
                   { label: 'Date of birth', value: cand.date_of_birth || '—' },
                   { label: 'Nationality', value: cand.nationality || '—' },
-                  { label: 'Phone', value: cand.phone || '—' },
+                  { label: 'Country of birth', value: cand.country_of_birth || '—' },
+                  { label: 'Place of birth', value: cand.place_of_birth || '—' },
+                  { label: 'Marital status', value: cand.marital_status || '—' },
+                  { label: "Father's full name", value: cand.father_name || '—' },
+                  { label: "Mother's full name", value: cand.mother_name || '—' },
+                  { label: 'Phone / WhatsApp', value: cand.phone || '—' },
                   { label: 'Email', value: cand.email || '—' },
                   { label: 'Country of residence', value: cand.country_of_residence || '—' },
+                  { label: 'City', value: cand.residence_city || '—' },
+                  { label: 'Municipality', value: cand.residence_municipality || '—' },
+                  { label: 'Street', value: cand.residence_street || '—' },
+                  { label: 'House number', value: cand.residence_house_number || '—' },
                   { label: 'EU citizenship', value: cand.eu_citizenship === null ? '—' : cand.eu_citizenship ? 'Yes' : 'No' },
+                  { label: 'Passport number', value: cand.passport_number || '—' },
+                  { label: 'Passport place of issue', value: cand.passport_place_of_issue || '—' },
+                  { label: 'Passport issue date', value: cand.passport_issue_date || '—' },
+                  { label: 'Passport expiry date', value: cand.passport_expiry_date || '—' },
+                  { label: 'Highest education', value: cand.highest_education || '—' },
+                  { label: 'Previous work experience', value: cand.work_experience || '—' },
+                  { label: 'Previous travel and visa history', value: cand.travel_visa_history || '—' },
                   { label: 'Target country', value: cand.target_country || '—' },
                   { label: 'Job category', value: cand.job_category || '—' },
                   { label: 'Driving licence', value: cand.driving_licence === null ? '—' : cand.driving_licence ? 'Yes' : 'No' },
                   { label: 'Driving licence conversion', value: cand.driving_licence_conversion_status || '—' },
-                  {
-                    label: 'Skills video',
-                    value: cand.video_url ? (
-                      <a href={cand.video_url} target="_blank" rel="noopener noreferrer" className="text-coral hover:underline inline-flex items-center gap-1">
-                        Open link <ExternalLink className="w-3 h-3" />
-                      </a>
-                    ) : '—',
-                  },
+                  { label: 'Introduction video', value: videoLink(cand.intro_video_url) },
+                  { label: 'Skills demonstration video', value: videoLink(cand.video_url) },
                   { label: 'Placement status', value: cand.placement_status },
                   { label: 'Created', value: new Date(cand.created_at).toLocaleString() },
                   { label: 'Last updated', value: new Date(cand.updated_at).toLocaleString() },
@@ -791,7 +808,7 @@ const Admin: React.FC = () => {
                               disabled={isLoading(`preview-cand-doc-${doc.id}`)}
                               className="text-sm bg-gray-50 border rounded-lg px-3 py-2 text-blue-600 hover:text-blue-800 disabled:opacity-50"
                             >
-                              {doc.document_type}
+                              {CANDIDATE_DOC_TYPE_LABELS[doc.document_type as keyof typeof CANDIDATE_DOC_TYPE_LABELS] ?? doc.document_type}
                             </button>
                           ))}
                         </div>

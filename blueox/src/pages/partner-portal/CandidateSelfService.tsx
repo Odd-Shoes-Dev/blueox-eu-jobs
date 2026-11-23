@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Upload, Trash2, Download, CheckCircle, Eye, X } from 'lucide-react';
 import * as candidateSelfService from '../../services/candidateSelfService';
-import { CANDIDATE_DOC_TYPES, getCompletionPercent } from '../../services/partnerCandidatesService';
-import type { PartnerCandidate } from '../../services/partnerCandidatesService';
+import { CANDIDATE_DOC_TYPES, CANDIDATE_DOC_TYPE_LABELS, CANDIDATE_FIELDS, getCompletionPercent } from '../../services/partnerCandidatesService';
+import type { CandidateField, PartnerCandidate } from '../../services/partnerCandidatesService';
 import * as storageService from '../../services/storageService';
 import { getFileKind } from '../../lib/fileKind';
 import CompletionBar from '../../components/CompletionBar';
@@ -13,14 +13,7 @@ const AUTOSAVE_DELAY_MS = 1500;
 type Candidate = Omit<PartnerCandidate, 'access_token'>;
 
 const DOC_TYPES: readonly string[] = CANDIDATE_DOC_TYPES;
-const DOC_LABELS: Record<string, string> = {
-  passport: 'Passport',
-  cv: 'CV / Resume',
-  education_certificate: 'Education Certificate',
-  work_reference: 'Work Reference',
-  medical_certificate: 'Medical Certificate',
-  police_clearance: 'Police Clearance',
-};
+const DOC_LABELS: Record<string, string> = CANDIDATE_DOC_TYPE_LABELS;
 
 interface Doc {
   id: string;
@@ -29,19 +22,10 @@ interface Doc {
   file_path: string;
 }
 
-const FIELDS: { key: keyof Candidate; label: string; type?: string }[] = [
-  { key: 'full_name', label: 'Full name' },
-  { key: 'date_of_birth', label: 'Date of birth', type: 'date' },
-  { key: 'nationality', label: 'Nationality' },
-  { key: 'phone', label: 'Phone / WhatsApp' },
-  { key: 'email', label: 'Email', type: 'email' },
-  { key: 'country_of_residence', label: 'Country of residence' },
-  { key: 'target_country', label: 'Target country' },
-  { key: 'job_category', label: 'Job category' },
-  { key: 'driving_licence_conversion_status', label: 'Driving licence conversion status' },
-];
+const FIELDS: CandidateField[] = CANDIDATE_FIELDS;
+const FIELD_GROUPS = Array.from(new Set(FIELDS.map((f) => f.group)));
 
-const AUTOSAVE_KEYS: (keyof Candidate)[] = [...FIELDS.map((f) => f.key), 'video_url'];
+const AUTOSAVE_KEYS: (keyof Candidate)[] = FIELDS.map((f) => f.key as keyof Candidate);
 
 // A snapshot of just the fields we autosave, so the debounce effect can tell
 // a real edit apart from a save's own response coming back in (which would
@@ -108,7 +92,7 @@ const CandidateSelfService: React.FC = () => {
 
   const editable = candidate?.status === 'draft' || candidate?.status === 'changes_requested';
 
-  const handleFieldChange = (key: keyof Candidate, value: string) => {
+  const handleFieldChange = (key: keyof PartnerCandidate, value: string) => {
     if (!candidate) return;
     setCandidate({ ...candidate, [key]: value });
   };
@@ -123,18 +107,10 @@ const CandidateSelfService: React.FC = () => {
     const sentSnapshot = snapshotOf(candidate);
     setSaveStatus('saving');
     try {
-      const updated = await candidateSelfService.updateCandidateByToken(token, {
-        full_name: candidate.full_name ?? undefined,
-        date_of_birth: candidate.date_of_birth ?? undefined,
-        nationality: candidate.nationality ?? undefined,
-        phone: candidate.phone ?? undefined,
-        email: candidate.email ?? undefined,
-        country_of_residence: candidate.country_of_residence ?? undefined,
-        target_country: candidate.target_country ?? undefined,
-        job_category: candidate.job_category ?? undefined,
-        driving_licence_conversion_status: candidate.driving_licence_conversion_status ?? undefined,
-        video_url: candidate.video_url ?? undefined,
-      });
+      const fields = Object.fromEntries(
+        AUTOSAVE_KEYS.map((k) => [k, candidate[k] ?? undefined])
+      ) as Parameters<typeof candidateSelfService.updateCandidateByToken>[1];
+      const updated = await candidateSelfService.updateCandidateByToken(token, fields);
       lastSavedRef.current = sentSnapshot;
       setCandidate((current) => current && ({
         ...current,
@@ -282,35 +258,49 @@ const CandidateSelfService: React.FC = () => {
         )}
 
         <fieldset disabled={!editable} className="bg-white rounded-2xl shadow-lg p-6 mb-6 disabled:opacity-70">
-          <div className="grid sm:grid-cols-2 gap-4">
-            {FIELDS.map((f) => (
-              <div key={f.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-                <input
-                  type={f.type ?? 'text'}
-                  value={f.type === 'date' ? ((candidate[f.key] as string) ?? '').slice(0, 10) : (candidate[f.key] as string) ?? ''}
-                  onChange={(e) => handleFieldChange(f.key, e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
-                />
+          {FIELD_GROUPS.map((group) => (
+            <div key={group} className="mb-6 last:mb-0">
+              <h3 className="text-xs font-space font-semibold text-gray-400 uppercase tracking-wide mb-3">{group}</h3>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {FIELDS.filter((f) => f.group === group).map((f) => (
+                  <div key={f.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+                    {f.type === 'select' ? (
+                      <select
+                        value={(candidate[f.key] as string) ?? ''}
+                        onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+                      >
+                        <option value="">Select…</option>
+                        {f.options?.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    ) : f.type === 'textarea' ? (
+                      <textarea
+                        value={(candidate[f.key] as string) ?? ''}
+                        onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+                      />
+                    ) : (
+                      <input
+                        type={f.type ?? 'text'}
+                        value={f.type === 'date' ? ((candidate[f.key] as string) ?? '').slice(0, 10) : (candidate[f.key] as string) ?? ''}
+                        onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Link to a video showing your skills (YouTube, Google Drive, etc.)
-            </label>
-            <input
-              type="url"
-              placeholder="https://..."
-              value={candidate.video_url ?? ''}
-              onChange={(e) => handleFieldChange('video_url', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-transparent text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Don't have one yet? Upload it to YouTube as Unlisted or Google Drive and paste the link here.
-            </p>
-          </div>
+              {group === 'Videos' && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Don't have a video yet? Upload it to YouTube as Unlisted or Google Drive and paste the link here.
+                </p>
+              )}
+            </div>
+          ))}
 
           {editable && (
             <div className="mt-4 flex items-center gap-3">

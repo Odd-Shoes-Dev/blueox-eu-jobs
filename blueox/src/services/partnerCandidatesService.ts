@@ -11,16 +11,34 @@ export interface PartnerCandidate {
   status: 'draft' | 'submitted' | 'locked' | 'changes_requested';
   changes_requested_note: string | null;
   full_name: string | null;
+  gender: string | null;
   date_of_birth: string | null;
   nationality: string | null;
+  country_of_birth: string | null;
+  place_of_birth: string | null;
+  marital_status: string | null;
+  father_name: string | null;
+  mother_name: string | null;
   phone: string | null;
   email: string | null;
   country_of_residence: string | null;
+  residence_city: string | null;
+  residence_municipality: string | null;
+  residence_street: string | null;
+  residence_house_number: string | null;
   eu_citizenship: boolean | null;
+  passport_number: string | null;
+  passport_place_of_issue: string | null;
+  passport_issue_date: string | null;
+  passport_expiry_date: string | null;
+  highest_education: string | null;
+  work_experience: string | null;
+  travel_visa_history: string | null;
   target_country: string | null;
   job_category: string | null;
   driving_licence: boolean | null;
   driving_licence_conversion_status: string | null;
+  intro_video_url: string | null;
   video_url: string | null;
   placement_status: 'not_placed' | 'matched' | 'placed' | 'invoiced';
   placed_job_id: string | null;
@@ -31,25 +49,97 @@ export interface PartnerCandidate {
 
 const BASE = '/api/clients?resource=partner-candidates';
 
-// The six document types a candidate can upload, shared across Dashboard.tsx,
+// The ten document types a candidate can upload, shared across Dashboard.tsx,
 // CandidateDetail.tsx, and CandidateSelfService.tsx so the completion
 // calculation below and each page's upload grid never drift out of sync.
 export const CANDIDATE_DOC_TYPES = [
   'passport', 'cv', 'education_certificate', 'work_reference', 'medical_certificate', 'police_clearance',
+  'photo', 'visa', 'signature', 'professional_certificate',
 ] as const;
+
+export const CANDIDATE_DOC_TYPE_LABELS: Record<typeof CANDIDATE_DOC_TYPES[number], string> = {
+  passport: 'Passport',
+  cv: 'CV / Resume',
+  education_certificate: 'Education Certificate',
+  work_reference: 'Work Reference',
+  medical_certificate: 'Medical Certificate',
+  police_clearance: 'Police Clearance',
+  photo: 'Passport-size Photo (white background)',
+  visa: 'Last Visa Sticker (if applicable)',
+  signature: 'Signature on White Paper',
+  professional_certificate: 'Professional Certificate (if available)',
+};
+
+// The editable fields of a candidate record, grouped and ordered the way
+// both candidate forms (the partner's and the candidate's own self-service
+// view) render them. A single shared list so the two pages can't drift out
+// of sync as the checklist grows; each page just loops this array.
+export type CandidateFieldType = 'date' | 'email' | 'select' | 'textarea';
+
+export interface CandidateField {
+  key: keyof PartnerCandidate;
+  label: string;
+  type?: CandidateFieldType;
+  options?: string[];
+  group: string;
+}
+
+export const CANDIDATE_FIELDS: CandidateField[] = [
+  // Identity
+  { key: 'full_name', label: 'Full name (as on passport)', group: 'Identity' },
+  { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female', 'Other'], group: 'Identity' },
+  { key: 'date_of_birth', label: 'Date of birth', type: 'date', group: 'Identity' },
+  { key: 'nationality', label: 'Nationality', group: 'Identity' },
+  { key: 'country_of_birth', label: 'Country of birth', group: 'Identity' },
+  { key: 'place_of_birth', label: 'Place of birth (city/town)', group: 'Identity' },
+  {
+    key: 'marital_status', label: 'Marital status', type: 'select',
+    options: ['Single', 'Married', 'Divorced', 'Widowed'], group: 'Identity',
+  },
+  { key: 'father_name', label: "Father's full name", group: 'Identity' },
+  { key: 'mother_name', label: "Mother's full name", group: 'Identity' },
+  // Contact
+  { key: 'phone', label: 'Phone / WhatsApp', group: 'Contact' },
+  { key: 'email', label: 'Email', type: 'email', group: 'Contact' },
+  // Address
+  { key: 'country_of_residence', label: 'Country of residence', group: 'Address' },
+  { key: 'residence_city', label: 'City', group: 'Address' },
+  { key: 'residence_municipality', label: 'Municipality', group: 'Address' },
+  { key: 'residence_street', label: 'Street', group: 'Address' },
+  { key: 'residence_house_number', label: 'House number', group: 'Address' },
+  // Passport
+  { key: 'passport_number', label: 'Passport number', group: 'Passport' },
+  { key: 'passport_place_of_issue', label: 'Passport place of issue', group: 'Passport' },
+  { key: 'passport_issue_date', label: 'Passport issue date', type: 'date', group: 'Passport' },
+  { key: 'passport_expiry_date', label: 'Passport expiry date', type: 'date', group: 'Passport' },
+  // Background
+  { key: 'highest_education', label: 'Highest education qualification', group: 'Background' },
+  { key: 'work_experience', label: 'Previous work experience', type: 'textarea', group: 'Background' },
+  { key: 'travel_visa_history', label: 'Previous travel and visa history', type: 'textarea', group: 'Background' },
+  // Work preferences
+  { key: 'target_country', label: 'Target country', group: 'Work preferences' },
+  { key: 'job_category', label: 'Job category', group: 'Work preferences' },
+  { key: 'driving_licence_conversion_status', label: 'Driving licence conversion status', group: 'Work preferences' },
+  // Videos
+  { key: 'intro_video_url', label: 'Introduction video link', group: 'Videos' },
+  { key: 'video_url', label: 'Skills demonstration video link', group: 'Videos' },
+];
 
 type CompletionFields = Pick<
   PartnerCandidate,
-  | 'full_name' | 'date_of_birth' | 'nationality' | 'phone' | 'email'
-  | 'country_of_residence' | 'target_country' | 'job_category'
-  | 'driving_licence_conversion_status' | 'video_url'
+  | 'full_name' | 'gender' | 'date_of_birth' | 'nationality' | 'country_of_birth' | 'place_of_birth'
+  | 'marital_status' | 'father_name' | 'mother_name' | 'phone' | 'email'
+  | 'country_of_residence' | 'residence_city' | 'residence_municipality' | 'residence_street'
+  | 'residence_house_number'
+  | 'passport_number' | 'passport_place_of_issue' | 'passport_issue_date' | 'passport_expiry_date'
+  | 'highest_education' | 'work_experience' | 'travel_visa_history'
+  | 'target_country' | 'job_category' | 'driving_licence_conversion_status'
+  | 'intro_video_url' | 'video_url'
 >;
 
-const COMPLETION_FIELDS: (keyof CompletionFields)[] = [
-  'full_name', 'date_of_birth', 'nationality', 'phone', 'email',
-  'country_of_residence', 'target_country', 'job_category',
-  'driving_licence_conversion_status', 'video_url',
-];
+const COMPLETION_FIELDS: (keyof CompletionFields)[] = CANDIDATE_FIELDS.map(
+  (f) => f.key as keyof CompletionFields
+);
 
 // A purely visual progress indicator (how much of the form and documents is
 // filled in) for a partner or candidate working on a record. Never affects
@@ -81,9 +171,14 @@ export async function updateCandidate(
   fields: Partial<
     Pick<
       PartnerCandidate,
-      | 'full_name' | 'date_of_birth' | 'nationality' | 'phone' | 'email'
-      | 'country_of_residence' | 'eu_citizenship' | 'target_country' | 'job_category'
-      | 'driving_licence' | 'driving_licence_conversion_status' | 'video_url'
+      | 'full_name' | 'gender' | 'date_of_birth' | 'nationality' | 'country_of_birth' | 'place_of_birth'
+      | 'marital_status' | 'father_name' | 'mother_name' | 'phone' | 'email'
+      | 'country_of_residence' | 'residence_city' | 'residence_municipality' | 'residence_street'
+      | 'residence_house_number' | 'eu_citizenship'
+      | 'passport_number' | 'passport_place_of_issue' | 'passport_issue_date' | 'passport_expiry_date'
+      | 'highest_education' | 'work_experience' | 'travel_visa_history'
+      | 'target_country' | 'job_category'
+      | 'driving_licence' | 'driving_licence_conversion_status' | 'intro_video_url' | 'video_url'
     >
   >
 ): Promise<PartnerCandidate> {
